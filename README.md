@@ -9,19 +9,68 @@ MyTerminus 是一个基于 Electron + TypeScript 开发的 SSH/SFTP 桌面客户
 - macOS 10.12+ (ARM64)
 - Windows 10+ (x64)
 
-## 安装
+## 安装与使用 (Installation)
 
-### macOS
+### 1. 普通用户直接安装
+可以获取预先打包好的安装包直接运行：
+- **macOS**: 双击 `MyTerminus-1.0.0-arm64.dmg`，将应用拖入 Applications 文件夹。
+- **Windows**: 运行 `MyTerminus-1.0.0-setup.exe` 按照向导完成安装。
 
-1. 双击 `MyTerminus-1.0.0-arm64.dmg` 打开安装包
-2. 将 `MyTerminus.app` 拖入应用程序文件夹
-3. 启动应用程序
+### 2. 开发者指南 (Developer Guide)
 
-### Windows
+如果您想从源码运行、修改或构建本机安装包，请遵循如下步骤：
 
-1. 运行 `MyTerminus-1.0.0-setup.exe`
-2. 按向导完成安装
-3. 启动应用程序
+#### 环境依赖
+- Node.js (推荐 v18+ 或 v20+)
+- npm 
+
+#### 本地启动 (Development)
+
+1. 克隆代码仓库并进入项目根目录：
+   ```bash
+   git clone <repository_url>
+   cd MyTerminus
+   ```
+2. 安装依赖：
+   ```bash
+   npm install
+   ```
+3. 启动开发环境（支持热更新）：
+   ```bash
+   npm run dev
+   ```
+   *注意：这会并行启动 Vite 渲染进程与 Electron 主进程。*
+
+#### 生产构建与打包 (Build & Package)
+
+我们使用 `electron-builder` 进行应用程序打包。打包后会在 `dist` (或 `release`) 目录下生成对应平台的可执行文件。
+
+> **⚠️ 跨平台打包注意**：通常建议在目标操作系统上自行打包（在 Mac 上打包 DMG，在 Windows 上打包 EXE）。如果需要在 Mac 上跨平台打包 Windows，需要预先全局安装并配置 `wine`。
+
+1. **基础构建**（只编译前端与主进程，测试代码是否有构建错误）：
+   ```bash
+   npm run build
+   ```
+
+2. **打 macOS 安装包 (.dmg / .app)**：
+   如果你当前在 macOS 系统上，请运行：
+   ```bash
+   npm run package:mac
+   # 若环境默认，也可以直接使用 npm run package
+   ```
+   **输出位置**：完成后会在项目根目录下的特定 release 目录（取决于 `package.json` 中的 `electron-builder` 配置，通常名为 `dist_electron` 或 `build` 等目录）中生成相应的 `.dmg` 安装映像。
+
+3. **打 Windows 安装包 (.exe)**：
+   如果你当前在 Windows 系统上，请运行：
+   ```bash
+   npm run package:win
+   ```
+   **输出位置**：打包成功后将生成用于 Windows 的 `.exe` 一键安装程序（Setup）。
+
+4. **根据当前系统平台自动打包**：
+   ```bash
+   npm run package
+   ```
 
 ## 快速开始
 
