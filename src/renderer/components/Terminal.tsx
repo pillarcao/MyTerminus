@@ -1,0 +1,221 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Terminal as XTerm } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
+
+// Module-level cache to persist xterm instances by tabId
+const xtermCache: Map<string, XTerm> = new Map();
+const shellReady: Map<string, boolean> = new Map();
+const dataListenerCleanup: Map<string, () => void> = new Map();
+
+type TerminalTheme = 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue';
+
+interface Props {
+  connectionId: string;
+  tabId: string;
+  terminalTheme?: TerminalTheme;
+}
+
+const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string }> = {
+  default: { background: 'rgba(12, 12, 12, 0.85)', foreground: '#cccccc', cursor: '#cccccc' },
+  dark: { background: 'rgba(30, 30, 30, 0.85)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
+  light: { background: 'rgba(255, 255, 255, 0.85)', foreground: '#000000', cursor: '#000000' },
+  monokai: { background: 'rgba(39, 40, 34, 0.85)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  green: { background: 'rgba(13, 17, 23, 0.85)', foreground: '#00ff00', cursor: '#00ff00' },
+  blue: { background: 'rgba(10, 25, 41, 0.85)', foreground: '#64d6ff', cursor: '#64d6ff' },
+};
+
+export default function Terminal({ connectionId, tabId, terminalTheme = 'default' }: Props) {
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; selection: string } | null>(null);
+
+  // Handle context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (xtermRef.current) {
+      const selection = xtermRef.current.getSelection();
+      setContextMenu({ x: e.clientX, y: e.clientY, selection });
+    }
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const handleCopy = useCallback(() => {
+    if (contextMenu?.selection) {
+      navigator.clipboard.writeText(contextMenu.selection);
+    }
+    closeContextMenu();
+  }, [contextMenu, closeContextMenu]);
+
+  const handleDelete = useCallback(() => {
+    window.electronAPI.sshInput(connectionId, '\x7f');
+    closeContextMenu();
+  }, [connectionId, closeContextMenu]);
+
+  const handlePaste = useCallback(async () => {
+    const text = await navigator.clipboard.readText();
+    window.electronAPI.sshInput(connectionId, text);
+    closeContextMenu();
+  }, [connectionId, closeContextMenu]);
+
+  // Ensure we have a valid theme
+  const validTheme = TERMINAL_THEMES[terminalTheme] ? terminalTheme : 'default';
+
+  useEffect(() => {
+    if (!terminalRef.current) return;
+
+    // Check if we have a cached xterm for this tab
+    let xterm = xtermCache.get(tabId);
+
+    if (xterm) {
+      // Reuse existing xterm - reattach to the current DOM container
+      const container = terminalRef.current;
+      // If xterm's element is detached or in a different container, re-open it
+      if (xterm.element && xterm.element.parentElement) {
+        // Already attached to correct parent, just move the DOM if needed
+        if (xterm.element.parentElement !== container) {
+          container.appendChild(xterm.element);
+        }
+      } else {
+        // Element is detached, need to re-open
+        // Clear the container first
+        container.innerHTML = '';
+        xterm.open(container);
+      }
+      xtermRef.current = xterm;
+    } else {
+      // Create new xterm and cache it
+      xterm = new XTerm({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        theme: {
+          ...TERMINAL_THEMES[validTheme],
+        },
+        scrollback: 10000,
+        allowProposedApi: true,
+      });
+      xterm.open(terminalRef.current);
+      xtermCache.set(tabId, xterm);
+      xtermRef.current = xterm;
+
+      // Initialize shell
+      initShell(xterm);
+    }
+
+    // Handle resize
+    const handleResize = () => {
+      if (terminalRef.current && xtermRef.current) {
+        const cols = Math.floor(terminalRef.current.offsetWidth / 8);
+        const rows = Math.floor(terminalRef.current.offsetHeight / 16);
+        if (cols > 0 && rows > 0) {
+          xtermRef.current.resize(cols, rows);
+          window.electronAPI.sshResize(connectionId, cols, rows);
+        }
+      }
+    };
+
+    resizeObserverRef.current = new ResizeObserver(handleResize);
+    resizeObserverRef.current.observe(terminalRef.current);
+    setTimeout(handleResize, 100);
+
+    // Cleanup: don't destroy xterm, just disconnect observer
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+    };
+  }, [tabId, connectionId, validTheme]);
+
+  const initShell = async (xterm: XTerm) => {
+    // Skip if shell already initialized for this connection
+    if (shellReady.get(connectionId)) {
+      // Shell already exists, just set up data listener for this tab's xterm
+      setupDataListener(xterm);
+      setConnected(true);
+      return;
+    }
+
+    try {
+      // Start shell
+      const result = await window.electronAPI.sshShell(connectionId);
+      if (result.success) {
+        setConnected(true);
+        shellReady.set(connectionId, true);
+
+        // Set up data listener for this tab's xterm
+        setupDataListener(xterm);
+
+        // Handle user input - send to SSH
+        xterm.onData((data: string) => {
+          window.electronAPI.sshInput(connectionId, data);
+        });
+
+        // Handle close
+        window.electronAPI.onSshClose(connectionId, () => {
+          setConnected(false);
+          xterm.writeln('\r\n*** Connection closed ***');
+          shellReady.delete(connectionId);
+        });
+      }
+    } catch (err) {
+      xterm.writeln(`\r\n*** Error: ${err} ***`);
+    }
+  };
+
+  const setupDataListener = (xterm: XTerm) => {
+    // Clean up any previous listener for this tab
+    const prevCleanup = dataListenerCleanup.get(tabId);
+    if (prevCleanup) {
+      prevCleanup();
+    }
+
+    // Set up data listener - receive output from SSH
+    const removeDataListener = window.electronAPI.onSshData(connectionId, (data: string) => {
+      xterm.write(data);
+    });
+
+    dataListenerCleanup.set(tabId, removeDataListener);
+  };
+
+  return (
+    <div className="terminal-container" onClick={closeContextMenu}>
+      <div
+        ref={terminalRef}
+        style={{ height: '100%' }}
+        onContextMenu={handleContextMenu}
+      />
+      {!connected && (
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+          Connecting...
+        </div>
+      )}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.selection ? (
+            <>
+              <div className="context-menu-item" onClick={handleCopy}>Copy</div>
+              <div className="context-menu-item" onClick={handleDelete}>Delete</div>
+            </>
+          ) : (
+            <div className="context-menu-item" onClick={handlePaste}>Paste</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

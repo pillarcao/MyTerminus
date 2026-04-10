@@ -1,0 +1,19 @@
+# 核心依赖
+node_modules/
+
+# 构建产物
+dist/
+
+release/
+
+# 环境变量
+.env*
+!.env.example
+
+# 日志缓存
+*.log
+*.tsbuildinfo
+
+# 系统文件
+*.DS_Store
+Thumbs.db
