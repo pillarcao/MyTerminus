@@ -10,7 +10,7 @@ const dataListenerCleanup: Map<string, () => void> = new Map();
 type TerminalTheme = 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue';
 
 interface Props {
-  tabId: string;
+  connectionId: string;
   tabId: string;
   terminalTheme?: TerminalTheme;
 }

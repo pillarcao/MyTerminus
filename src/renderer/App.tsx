@@ -258,6 +258,7 @@ export default function App() {
             onConnect={handleConnect}
             onDisconnect={handleDisconnect}
             onEditConnection={handleEditConnection}
+            onDeleteConnection={handleDeleteConnection}
           />
         </div>
         {/* Non-host tabs - always rendered, toggled via visibility */}

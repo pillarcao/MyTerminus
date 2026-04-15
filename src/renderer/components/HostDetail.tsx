@@ -7,6 +7,7 @@ interface Props {
   onConnect: (connection: Connection, type: 'ssh' | 'sftp') => void;
   onDisconnect: (connectionId: string) => void;
   onEditConnection: (connection: Connection) => void;
+  onDeleteConnection: (id: string) => void;
 }
 
 export default function HostDetail({
@@ -16,6 +17,7 @@ export default function HostDetail({
   onConnect,
   onDisconnect,
   onEditConnection,
+  onDeleteConnection,
 }: Props) {
   // Filter connections based on selected group
   const displayConnections = selectedGroup
@@ -131,6 +133,18 @@ export default function HostDetail({
                     title="Edit"
                   >
                     ✎
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => {
+                      if (confirm(`Delete connection "${conn.name}"?`)) {
+                        onDeleteConnection(conn.id);
+                      }
+                    }}
+                    title="Delete"
+                    style={{ color: 'var(--error)' }}
+                  >
+                    🗑
                   </button>
                 </div>
               </div>

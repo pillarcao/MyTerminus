@@ -160,13 +160,15 @@ declare global {
       onSshClose: (connectionId: string, callback: () => void) => () => void;
 
       sftpConnect: (connectionId: string) => Promise<{ success: boolean }>;
+      sftpHome: (connectionId: string) => Promise<string>;
       sftpList: (connectionId: string, remotePath: string) => Promise<SFTPFile[]>;
       sftpMkdir: (connectionId: string, remotePath: string) => Promise<{ success: boolean }>;
       sftpRmdir: (connectionId: string, remotePath: string) => Promise<{ success: boolean }>;
       sftpDelete: (connectionId: string, remotePath: string) => Promise<{ success: boolean }>;
       sftpRename: (connectionId: string, oldPath: string, newPath: string) => Promise<{ success: boolean }>;
-      sftpUpload: (connectionId: string, localPath: string, remotePath: string) => Promise<{ success: boolean }>;
-      sftpDownload: (connectionId: string, remotePath: string, localPath: string) => Promise<{ success: boolean }>;
+      sftpUpload: (tabId: string, connectionId: string, localPath: string, remotePath: string) => Promise<{ success: boolean }>;
+      sftpDownload: (tabId: string, connectionId: string, remotePath: string, localPath: string) => Promise<{ success: boolean }>;
+      onSftpProgress: (tabId: string, callback: (data: { type: string; progress: number; transferred: number; total: number }) => void) => () => void;
 
       openFileDialog: () => Promise<string | null>;
       saveFileDialog: (defaultPath: string) => Promise<string | null>;

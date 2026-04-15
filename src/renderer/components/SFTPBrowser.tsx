@@ -19,6 +19,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   const currentPath = sftpPath[connectionId] || '/';
   const files = sftpFiles[connectionId] || [];
@@ -102,12 +103,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     setSftpPath(connectionId, path);
   };
 
-  const navigateUp = () => {
-    const parts = currentPath.split('/').filter(Boolean);
-    parts.pop();
-    const newPath = '/' + parts.join('/');
-    navigateTo(newPath || '/');
-  };
+
 
   const handleRemoteFileClick = (file: SFTPFile, isDoubleClick: boolean = false) => {
     if (file.isDirectory && isDoubleClick) {
@@ -255,6 +251,13 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
         <button className="btn btn-sm btn-secondary" onClick={() => setShowNewFolder(true)}>
           + Folder
         </button>
+        <button 
+          className={`btn btn-sm ${showHidden ? 'btn-primary' : 'btn-secondary'}`} 
+          onClick={() => setShowHidden(!showHidden)}
+          title={showHidden ? 'Hide Hidden Files' : 'Show Hidden Files'}
+        >
+          {showHidden ? '👁' : '👁‍🗨'}
+        </button>
         <span className="transfer-status">
           {transferStatus}
           {progress && (
@@ -284,6 +287,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
             onDragStart={(file) => setSelectedLocalFile(file)}
             selectedFile={selectedLocalFile?.path || null}
             onPathChange={(path) => setLocalPath(tabId, path)}
+            showHidden={showHidden}
           />
         </div>
 
@@ -343,7 +347,9 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {files.map((file) => (
+                  {files
+                    .filter(file => showHidden || !file.name.startsWith('.'))
+                    .map((file) => (
                     <tr
                       key={file.name}
                       className={selectedRemoteFile?.name === file.name ? 'selected' : ''}

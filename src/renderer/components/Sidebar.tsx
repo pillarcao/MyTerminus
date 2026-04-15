@@ -187,6 +187,18 @@ export default function Sidebar({
           >
             ⚙
           </button>
+          <button
+            className="btn-icon btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Delete connection "${conn.name}"?`)) {
+                onDeleteConnection(conn.id);
+              }
+            }}
+            title="Delete"
+          >
+            🗑
+          </button>
         </div>
       </div>
     );

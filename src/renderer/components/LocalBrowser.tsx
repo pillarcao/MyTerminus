@@ -8,9 +8,10 @@ interface Props {
   onFileSelect: (file: LocalFile) => void;
   onDragStart: (file: LocalFile) => void;
   selectedFile: string | null;
+  showHidden?: boolean;
 }
 
-export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSelect, onDragStart, selectedFile }: Props) {
+export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSelect, onDragStart, selectedFile, showHidden = false }: Props) {
   const [currentPath, setCurrentPath] = useState<string>(localPath || '');
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -129,7 +130,9 @@ export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSel
               </tr>
             </thead>
             <tbody>
-              {files.map((file) => (
+              {files
+                .filter((file) => showHidden || !file.name.startsWith('.'))
+                .map((file) => (
                 <tr
                   key={file.path}
                   className={selectedFile === file.path ? 'selected' : ''}
