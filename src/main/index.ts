@@ -566,30 +566,56 @@ ipcMain.handle('sftp:rename', async (_event, connectionId: string, oldPath: stri
   });
 });
 
-ipcMain.handle('sftp:upload', async (_event, connectionId: string, localPath: string, remotePath: string) => {
-  const sftp = sftpClients.get(connectionId);
+ipcMain.handle('sftp:upload', async (_event, tabId: string, connectionId: string, localPath: string, remotePath: string) => {
+  const sftp: any = sftpClients.get(connectionId);
   if (!sftp) {
     throw new Error('SFTP not connected');
   }
 
+  // Get file size for progress calculation
+  const fs = require('fs');
+  const stats = fs.statSync(localPath);
+  const totalSize = stats.size;
+
+  // Send initial progress
+  mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 0, transferred: 0, total: totalSize });
+
   return new Promise((resolve, reject) => {
-    sftp.fastPut(localPath, remotePath, (err) => {
-      if (err) reject(err.message);
-      else resolve({ success: true });
+    // Use fastPut for reliable transfer
+    sftp.fastPut(localPath, remotePath, (err: any) => {
+      if (err) {
+        reject(err.message);
+      } else {
+        mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 100, transferred: totalSize, total: totalSize });
+        resolve({ success: true });
+      }
     });
   });
 });
 
-ipcMain.handle('sftp:download', async (_event, connectionId: string, remotePath: string, localPath: string) => {
-  const sftp = sftpClients.get(connectionId);
+ipcMain.handle('sftp:download', async (_event, tabId: string, connectionId: string, remotePath: string, localPath: string) => {
+  const sftp: any = sftpClients.get(connectionId);
   if (!sftp) {
     throw new Error('SFTP not connected');
   }
 
+  // First get the file size
   return new Promise((resolve, reject) => {
-    sftp.fastGet(remotePath, localPath, (err) => {
-      if (err) reject(err.message);
-      else resolve({ success: true });
+    sftp.stat(remotePath, (err: any, stats: any) => {
+      const totalSize = stats?.size || 0;
+
+      // Send initial progress
+      mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 0, transferred: 0, total: totalSize });
+
+      // Use fastGet for reliable download
+      sftp.fastGet(remotePath, localPath, (err2: any) => {
+        if (err2) {
+          reject(err2.message);
+        } else {
+          mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 100, transferred: totalSize, total: totalSize });
+          resolve({ success: true });
+        }
+      });
     });
   });
 });

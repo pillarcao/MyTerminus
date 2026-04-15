@@ -49,10 +49,15 @@ const api = {
     ipcRenderer.invoke('sftp:delete', connectionId, remotePath),
   sftpRename: (connectionId: string, oldPath: string, newPath: string) =>
     ipcRenderer.invoke('sftp:rename', connectionId, oldPath, newPath),
-  sftpUpload: (connectionId: string, localPath: string, remotePath: string) =>
-    ipcRenderer.invoke('sftp:upload', connectionId, localPath, remotePath),
-  sftpDownload: (connectionId: string, remotePath: string, localPath: string) =>
-    ipcRenderer.invoke('sftp:download', connectionId, remotePath, localPath),
+  sftpUpload: (tabId: string, connectionId: string, localPath: string, remotePath: string) =>
+    ipcRenderer.invoke('sftp:upload', tabId, connectionId, localPath, remotePath),
+  sftpDownload: (tabId: string, connectionId: string, remotePath: string, localPath: string) =>
+    ipcRenderer.invoke('sftp:download', tabId, connectionId, remotePath, localPath),
+  onSftpProgress: (tabId: string, callback: (data: { type: string; progress: number; transferred: number; total: number }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on(`sftp:progress:${tabId}`, listener);
+    return () => ipcRenderer.removeListener(`sftp:progress:${tabId}`, listener);
+  },
 
   // Dialogs
   openFileDialog: () => ipcRenderer.invoke('dialog:openFile'),

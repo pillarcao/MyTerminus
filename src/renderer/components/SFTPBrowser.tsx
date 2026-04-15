@@ -5,9 +5,10 @@ import LocalBrowser from './LocalBrowser';
 
 interface Props {
   connectionId: string;
+  tabId: string;
 }
 
-export default function SFTPBrowser({ connectionId }: Props) {
+export default function SFTPBrowser({ connectionId, tabId }: Props) {
   const { sftpPath, sftpFiles, setSftpPath, setSftpFiles } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +18,7 @@ export default function SFTPBrowser({ connectionId }: Props) {
   const [newFolderName, setNewFolderName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
 
   const currentPath = sftpPath[connectionId] || '/';
   const files = sftpFiles[connectionId] || [];
@@ -27,8 +29,17 @@ export default function SFTPBrowser({ connectionId }: Props) {
       initialized.current = true;
       initHomePath();
     }
+    // Listen for SFTP progress
+    const removeProgressListener = window.electronAPI.onSftpProgress(tabId, (data) => {
+      setProgress({ current: data.transferred, total: data.total });
+      setTransferStatus(`${data.type === 'upload' ? 'Uploading' : 'Downloading'}: ${data.progress}%`);
+    });
+
+    return () => {
+      removeProgressListener();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionId]);
+  }, [connectionId, tabId]);
 
   // Watch for path changes to reload files
   useEffect(() => {
@@ -115,14 +126,17 @@ export default function SFTPBrowser({ connectionId }: Props) {
     const fileToUpload = localFile || selectedLocalFile;
     if (!fileToUpload) return;
 
+    setProgress(null);
     setTransferStatus(`Uploading ${fileToUpload.name}...`);
     try {
       const remotePath = currentPath === '/' ? `/${fileToUpload.name}` : `${currentPath}/${fileToUpload.name}`;
-      await window.electronAPI.sftpUpload(connectionId, fileToUpload.path, remotePath);
+      await window.electronAPI.sftpUpload(tabId, connectionId, fileToUpload.path, remotePath);
       await loadFiles();
       setTransferStatus(null);
+      setProgress(null);
     } catch (err: any) {
       setTransferStatus(null);
+      setProgress(null);
       setError(err.toString());
     }
   };
@@ -136,12 +150,15 @@ export default function SFTPBrowser({ connectionId }: Props) {
     const localPath = await window.electronAPI.saveFileDialog(fileToDownload.name);
     if (!localPath) return;
 
+    setProgress(null);
     setTransferStatus(`Downloading ${fileToDownload.name}...`);
     try {
-      await window.electronAPI.sftpDownload(connectionId, remotePath, localPath);
+      await window.electronAPI.sftpDownload(tabId, connectionId, remotePath, localPath);
       setTransferStatus(null);
+      setProgress(null);
     } catch (err: any) {
       setTransferStatus(null);
+      setProgress(null);
       setError(err.toString());
     }
   };
@@ -237,7 +254,14 @@ export default function SFTPBrowser({ connectionId }: Props) {
         <button className="btn btn-sm btn-secondary" onClick={() => setShowNewFolder(true)}>
           + Folder
         </button>
-        <span className="transfer-status">{transferStatus}</span>
+        <span className="transfer-status">
+          {transferStatus}
+          {progress && (
+            <span className="progress-bar">
+              {Math.round((progress.current / progress.total) * 100)}%
+            </span>
+          )}
+        </span>
       </div>
 
       {/* Dual panels */}

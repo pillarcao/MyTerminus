@@ -279,7 +279,7 @@ export default function App() {
                   terminalTheme={connections.find(c => c.id === tab.connectionId)?.terminalTheme || 'default'}
                 />
               ) : (
-                <SFTPBrowser connectionId={tab.connectionId} />
+                <SFTPBrowser connectionId={tab.connectionId} tabId={tab.id} />
               )}
             </div>
           ))}
