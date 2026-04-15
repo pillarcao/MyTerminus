@@ -2,25 +2,42 @@ import { useEffect, useState } from 'react';
 import { LocalFile } from '@shared/types';
 
 interface Props {
+  tabId?: string;
+  localPath?: string;
+  onPathChange?: (path: string) => void;
   onFileSelect: (file: LocalFile) => void;
   onDragStart: (file: LocalFile) => void;
   selectedFile: string | null;
 }
 
-export default function LocalBrowser({ onFileSelect, onDragStart, selectedFile }: Props) {
-  const [currentPath, setCurrentPath] = useState<string>('');
+export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSelect, onDragStart, selectedFile }: Props) {
+  const [currentPath, setCurrentPath] = useState<string>(localPath || '');
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    init();
+    if (localPath) {
+      setCurrentPath(localPath);
+      loadFiles(localPath);
+    } else {
+      init();
+    }
   }, []);
+
+  // Watch for external path changes
+  useEffect(() => {
+    if (localPath && localPath !== currentPath) {
+      setCurrentPath(localPath);
+      loadFiles(localPath);
+    }
+  }, [localPath]);
 
   const init = async () => {
     try {
       const home = await window.electronAPI.getLocalHome();
       setCurrentPath(home);
+      onPathChange?.(home);
       await loadFiles(home);
     } catch (err) {
       console.error('Failed to init:', err);
@@ -42,6 +59,7 @@ export default function LocalBrowser({ onFileSelect, onDragStart, selectedFile }
 
   const navigateTo = (dirPath: string) => {
     setCurrentPath(dirPath);
+    onPathChange?.(dirPath);
     loadFiles(dirPath);
   };
 

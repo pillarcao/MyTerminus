@@ -23,6 +23,9 @@ interface AppState {
   sftpPath: Record<string, string>;
   sftpFiles: Record<string, SFTPFile[]>;
 
+  // Local file browser state per tab
+  localPath: Record<string, string>;
+
   // Actions
   setConnections: (connections: Connection[]) => void;
   setGroups: (groups: Group[]) => void;
@@ -34,6 +37,7 @@ interface AppState {
   setError: (error: string | null) => void;
   setSftpPath: (connectionId: string, path: string) => void;
   setSftpFiles: (connectionId: string, files: SFTPFile[]) => void;
+  setLocalPath: (tabId: string, path: string) => void;
   setTheme: (themeId: string) => void;
   toggleGroup: (groupId: string) => void;
 }
@@ -50,6 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
   expandedGroups: new Set(),
   sftpPath: {},
   sftpFiles: {},
+  localPath: {},
 
   setConnections: (connections) => set({ connections }),
   setGroups: (groups) => set({ groups }),
@@ -75,6 +80,9 @@ export const useAppStore = create<AppState>((set) => ({
   })),
   setSftpFiles: (connectionId, files) => set((state) => ({
     sftpFiles: { ...state.sftpFiles, [connectionId]: files },
+  })),
+  setLocalPath: (tabId, path) => set((state) => ({
+    localPath: { ...state.localPath, [tabId]: path },
   })),
   setTheme: (themeId) => {
     const theme = THEMES.find(t => t.id === themeId) || THEMES[0];

@@ -1921,3 +1921,85 @@ h1, h2, h3, h4, h5, h6, strong, .font-semibold {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Premium Action Buttons (SSH/SFTP) */
+.btn-action-premium {
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.btn-action-premium:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-action-premium:active {
+  transform: translateY(0);
+}
+
+.btn-danger-premium {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--error);
+  border-color: rgba(255, 59, 48, 0.2);
+}
+
+.btn-danger-premium:hover {
+  background: var(--error);
+  color: white;
+  border-color: var(--error);
+}
+
+.btn-action-premium svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.icon-blue { color: #007aff; fill: currentColor; }
+.icon-green { color: #34c759; fill: currentColor; }
+
+.btn-icon-img {
+  width: auto;
+  height: 20px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.btn-fill {
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: auto;
+  min-width: 60px;
+}
+
+.btn-fill img {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+}

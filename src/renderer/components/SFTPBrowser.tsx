@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function SFTPBrowser({ connectionId, tabId }: Props) {
-  const { sftpPath, sftpFiles, setSftpPath, setSftpFiles } = useAppStore();
+  const { sftpPath, sftpFiles, localPath, setSftpPath, setSftpFiles, setLocalPath } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedLocalFile, setSelectedLocalFile] = useState<LocalFile | null>(null);
@@ -147,13 +147,14 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     if (!fileToDownload) return;
 
     const remotePath = currentPath === '/' ? `/${fileToDownload.name}` : `${currentPath}/${fileToDownload.name}`;
-    const localPath = await window.electronAPI.saveFileDialog(fileToDownload.name);
-    if (!localPath) return;
+    // Use local browser's current path as download destination
+    const currentLocalPath = localPath[tabId] || '/';
+    const localFilePath = currentLocalPath === '/' ? `/${fileToDownload.name}` : `${currentLocalPath}/${fileToDownload.name}`;
 
     setProgress(null);
     setTransferStatus(`Downloading ${fileToDownload.name}...`);
     try {
-      await window.electronAPI.sftpDownload(tabId, connectionId, remotePath, localPath);
+      await window.electronAPI.sftpDownload(tabId, connectionId, remotePath, localFilePath);
       setTransferStatus(null);
       setProgress(null);
     } catch (err: any) {
@@ -277,9 +278,12 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
             <span className="panel-title">📱 Local</span>
           </div>
           <LocalBrowser
+            tabId={tabId}
+            localPath={localPath[tabId]}
             onFileSelect={(file) => setSelectedLocalFile(file)}
             onDragStart={(file) => setSelectedLocalFile(file)}
             selectedFile={selectedLocalFile?.path || null}
+            onPathChange={(path) => setLocalPath(tabId, path)}
           />
         </div>
 

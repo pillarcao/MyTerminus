@@ -70,20 +70,30 @@ export default function HostDetail({
                   {isConnected ? (
                     <>
                       <button
-                        className="btn btn-sm btn-table-action"
+                        className="btn-action-premium"
                         onClick={() => onConnect(conn, 'ssh')}
+                        title="SSH Terminal"
                       >
                         SSH
+                        <svg viewBox="0 0 24 24" className="icon-blue">
+                          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                        </svg>
                       </button>
                       <button
-                        className="btn btn-sm btn-table-action"
+                        className="btn-action-premium"
                         onClick={() => onConnect(conn, 'sftp')}
+                        title="SFTP Browser"
                       >
                         SFTP
+                        <svg viewBox="0 0 24 24" className="icon-green">
+                          <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-8 7h-1v-1h1v1zm-3-2V8h1v3H9zm6 3h-1v-1h1v1zm-3-2v-3h1v3h-1z" opacity=".3"/>
+                          <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
                       </button>
                       <button
-                        className="btn btn-sm btn-table-danger"
+                        className="btn-action-premium btn-danger-premium"
                         onClick={() => onDisconnect(conn.id)}
+                        title="Disconnect"
                       >
                         Disconnect
                       </button>
@@ -91,16 +101,25 @@ export default function HostDetail({
                   ) : (
                     <>
                       <button
-                        className="btn btn-sm btn-table-action"
+                        className="btn-action-premium"
                         onClick={() => onConnect(conn, 'ssh')}
+                        title="SSH Terminal"
                       >
                         SSH
+                        <svg viewBox="0 0 24 24" className="icon-blue">
+                          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                        </svg>
                       </button>
                       <button
-                        className="btn btn-sm btn-table-action"
+                        className="btn-action-premium"
                         onClick={() => onConnect(conn, 'sftp')}
+                        title="SFTP Browser"
                       >
                         SFTP
+                        <svg viewBox="0 0 24 24" className="icon-green">
+                          <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-8 7h-1v-1h1v1zm-3-2V8h1v3H9zm6 3h-1v-1h1v1zm-3-2v-3h1v3h-1z" opacity=".3"/>
+                          <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
                       </button>
                     </>
                   )}
@@ -111,7 +130,7 @@ export default function HostDetail({
                     onClick={() => onEditConnection(conn)}
                     title="Edit"
                   >
-                    ⚙
+                    ✎
                   </button>
                 </div>
               </div>
