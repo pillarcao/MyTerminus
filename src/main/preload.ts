@@ -20,20 +20,20 @@ const api = {
   sshConnect: (connectionId: string, config: any) =>
     ipcRenderer.invoke('ssh:connect', connectionId, config),
   sshDisconnect: (connectionId: string) => ipcRenderer.invoke('ssh:disconnect', connectionId),
-  sshShell: (connectionId: string) => ipcRenderer.invoke('ssh:shell', connectionId),
-  sshInput: (connectionId: string, data: string) =>
-    ipcRenderer.send('ssh:input', connectionId, data),
-  sshResize: (connectionId: string, cols: number, rows: number) =>
-    ipcRenderer.send('ssh:resize', connectionId, cols, rows),
-  onSshData: (connectionId: string, callback: (data: string) => void) => {
+  sshShell: (tabId: string, connectionId: string) => ipcRenderer.invoke('ssh:shell', tabId, connectionId),
+  sshInput: (tabId: string, data: string) =>
+    ipcRenderer.send('ssh:input', tabId, data),
+  sshResize: (tabId: string, cols: number, rows: number) =>
+    ipcRenderer.send('ssh:resize', tabId, cols, rows),
+  onSshData: (tabId: string, callback: (data: string) => void) => {
     const listener = (_event: any, data: string) => callback(data);
-    ipcRenderer.on(`ssh:data:${connectionId}`, listener);
-    return () => ipcRenderer.removeListener(`ssh:data:${connectionId}`, listener);
+    ipcRenderer.on(`ssh:data:${tabId}`, listener);
+    return () => ipcRenderer.removeListener(`ssh:data:${tabId}`, listener);
   },
-  onSshClose: (connectionId: string, callback: () => void) => {
+  onSshClose: (tabId: string, callback: () => void) => {
     const listener = () => callback();
-    ipcRenderer.on(`ssh:close:${connectionId}`, listener);
-    return () => ipcRenderer.removeListener(`ssh:close:${connectionId}`, listener);
+    ipcRenderer.on(`ssh:close:${tabId}`, listener);
+    return () => ipcRenderer.removeListener(`ssh:close:${tabId}`, listener);
   },
 
   // SFTP operations

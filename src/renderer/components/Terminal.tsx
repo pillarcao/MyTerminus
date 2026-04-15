@@ -10,7 +10,7 @@ const dataListenerCleanup: Map<string, () => void> = new Map();
 type TerminalTheme = 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue';
 
 interface Props {
-  connectionId: string;
+  tabId: string;
   tabId: string;
   terminalTheme?: TerminalTheme;
 }
@@ -52,15 +52,15 @@ export default function Terminal({ connectionId, tabId, terminalTheme = 'default
   }, [contextMenu, closeContextMenu]);
 
   const handleDelete = useCallback(() => {
-    window.electronAPI.sshInput(connectionId, '\x7f');
+    window.electronAPI.sshInput(tabId, '\x7f');
     closeContextMenu();
-  }, [connectionId, closeContextMenu]);
+  }, [tabId, closeContextMenu]);
 
   const handlePaste = useCallback(async () => {
     const text = await navigator.clipboard.readText();
-    window.electronAPI.sshInput(connectionId, text);
+    window.electronAPI.sshInput(tabId, text);
     closeContextMenu();
-  }, [connectionId, closeContextMenu]);
+  }, [tabId, closeContextMenu]);
 
   // Ensure we have a valid theme
   const validTheme = TERMINAL_THEMES[terminalTheme] ? terminalTheme : 'default';
@@ -114,7 +114,7 @@ export default function Terminal({ connectionId, tabId, terminalTheme = 'default
         const rows = Math.floor(terminalRef.current.offsetHeight / 16);
         if (cols > 0 && rows > 0) {
           xtermRef.current.resize(cols, rows);
-          window.electronAPI.sshResize(connectionId, cols, rows);
+          window.electronAPI.sshResize(tabId, cols, rows);
         }
       }
     };
@@ -130,11 +130,11 @@ export default function Terminal({ connectionId, tabId, terminalTheme = 'default
         resizeObserverRef.current = null;
       }
     };
-  }, [tabId, connectionId, validTheme]);
+  }, [tabId, tabId, validTheme]);
 
   const initShell = async (xterm: XTerm) => {
     // Skip if shell already initialized for this connection
-    if (shellReady.get(connectionId)) {
+    if (shellReady.get(tabId)) {
       // Shell already exists, just set up data listener for this tab's xterm
       setupDataListener(xterm);
       setConnected(true);
@@ -143,24 +143,24 @@ export default function Terminal({ connectionId, tabId, terminalTheme = 'default
 
     try {
       // Start shell
-      const result = await window.electronAPI.sshShell(connectionId);
+      const result = await window.electronAPI.sshShell(tabId, connectionId);
       if (result.success) {
         setConnected(true);
-        shellReady.set(connectionId, true);
+        shellReady.set(tabId, true);
 
         // Set up data listener for this tab's xterm
         setupDataListener(xterm);
 
         // Handle user input - send to SSH
         xterm.onData((data: string) => {
-          window.electronAPI.sshInput(connectionId, data);
+          window.electronAPI.sshInput(tabId, data);
         });
 
         // Handle close
-        window.electronAPI.onSshClose(connectionId, () => {
+        window.electronAPI.onSshClose(tabId, () => {
           setConnected(false);
           xterm.writeln('\r\n*** Connection closed ***');
-          shellReady.delete(connectionId);
+          shellReady.delete(tabId);
         });
       }
     } catch (err) {
@@ -176,7 +176,7 @@ export default function Terminal({ connectionId, tabId, terminalTheme = 'default
     }
 
     // Set up data listener - receive output from SSH
-    const removeDataListener = window.electronAPI.onSshData(connectionId, (data: string) => {
+    const removeDataListener = window.electronAPI.onSshData(tabId, (data: string) => {
       xterm.write(data);
     });
 

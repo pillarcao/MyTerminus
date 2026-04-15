@@ -337,15 +337,15 @@ ipcMain.handle('ssh:disconnect', (_event, connectionId: string) => {
 });
 
 // SSH shell/terminal
-ipcMain.handle('ssh:shell', async (_event, connectionId: string) => {
+ipcMain.handle('ssh:shell', async (_event, tabId: string, connectionId: string) => {
   const client = connections.get(connectionId);
   if (!client) {
     throw new Error('Connection not found');
   }
 
-  // Check if shell already exists for this connection
-  if (shellStreams.has(connectionId)) {
-    console.log('[Main] Shell already exists for:', connectionId);
+  // Each tab gets its own shell session (keyed by tabId)
+  if (shellStreams.has(tabId)) {
+    console.log('[Main] Shell already exists for tab:', tabId);
     return { success: true, reused: true };
   }
 
@@ -357,16 +357,16 @@ ipcMain.handle('ssh:shell', async (_event, connectionId: string) => {
         return;
       }
 
-      // Store stream for input
-      shellStreams.set(connectionId, stream);
+      // Store stream keyed by tabId for independent sessions
+      shellStreams.set(tabId, stream);
 
       stream.on('data', (data: Buffer) => {
-        mainWindow?.webContents.send(`ssh:data:${connectionId}`, data.toString());
+        mainWindow?.webContents.send(`ssh:data:${tabId}`, data.toString());
       });
 
       stream.on('close', () => {
-        shellStreams.delete(connectionId);
-        mainWindow?.webContents.send(`ssh:close:${connectionId}`);
+        shellStreams.delete(tabId);
+        mainWindow?.webContents.send(`ssh:close:${tabId}`);
       });
 
       resolve({ success: true });
@@ -374,15 +374,15 @@ ipcMain.handle('ssh:shell', async (_event, connectionId: string) => {
   });
 });
 
-ipcMain.on('ssh:input', (_event, connectionId: string, data: string) => {
-  const stream = shellStreams.get(connectionId);
+ipcMain.on('ssh:input', (_event, tabId: string, data: string) => {
+  const stream = shellStreams.get(tabId);
   if (stream) {
     stream.write(data);
   }
 });
 
-ipcMain.on('ssh:resize', (_event, connectionId: string, cols: number, rows: number) => {
-  const stream = shellStreams.get(connectionId);
+ipcMain.on('ssh:resize', (_event, tabId: string, cols: number, rows: number) => {
+  const stream = shellStreams.get(tabId);
   if (stream) {
     stream.setWindow(rows, cols, 0, 0);
   }
