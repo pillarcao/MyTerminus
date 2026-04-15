@@ -127,6 +127,29 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
                 <option value="blue">Blue (Ocean)</option>
               </select>
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Cursor Style</label>
+                <select
+                  value={form.cursorStyle || 'block'}
+                  onChange={(e) => setForm({ ...form, cursorStyle: e.target.value as any })}
+                >
+                  <option value="block">Block</option>
+                  <option value="bar">Bar (Beam)</option>
+                  <option value="underline">Underline</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '28px' }}>
+                <input
+                  type="checkbox"
+                  id="cursorBlink"
+                  checked={form.cursorBlink !== false}
+                  onChange={(e) => setForm({ ...form, cursorBlink: e.target.checked })}
+                  style={{ width: 'auto' }}
+                />
+                <label htmlFor="cursorBlink" style={{ marginBottom: 0 }}>Blinking</label>
+              </div>
+            </div>
 
             <div className="form-group">
               <label>Authentication</label>

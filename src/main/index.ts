@@ -24,6 +24,8 @@ const sftpClients: Map<string, SFTPWrapper> = new Map();
 const shellStreams: Map<string, any> = new Map();
 
 function createWindow() {
+  const isMac = process.platform === 'darwin';
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -31,8 +33,15 @@ function createWindow() {
     vibrancy: 'under-window',
     visualEffectState: 'active',
     backgroundColor: '#00000000',
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    titleBarOverlay: isMac ? false : {
+      color: 'rgba(0, 0, 0, 0)',
+      symbolColor: '#74b1be',
+      height: 32
+    },
     trafficLightPosition: { x: 12, y: 16 },
+    resizable: true,
+    maximizable: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

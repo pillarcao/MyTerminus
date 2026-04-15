@@ -224,7 +224,7 @@ export default function App() {
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   return (
-    <div className="app">
+    <div className={`app platform-${window.electronAPI.platform}`}>
       <div className="header">
         <TabBar onTabClose={handleTabClose} />
         <div className="header-right">
@@ -278,6 +278,8 @@ export default function App() {
                   connectionId={tab.connectionId}
                   tabId={tab.id}
                   terminalTheme={connections.find(c => c.id === tab.connectionId)?.terminalTheme || 'default'}
+                  cursorStyle={connections.find(c => c.id === tab.connectionId)?.cursorStyle || 'block'}
+                  cursorBlink={connections.find(c => c.id === tab.connectionId)?.cursorBlink !== false}
                 />
               ) : (
                 <SFTPBrowser connectionId={tab.connectionId} tabId={tab.id} />

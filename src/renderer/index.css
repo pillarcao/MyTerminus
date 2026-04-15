@@ -437,6 +437,13 @@ h1, h2, h3, h4, h5, h6, strong, .font-semibold {
   min-height: 48px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  -webkit-app-region: drag;
+  padding-right: 0;
+}
+
+/* Windows specific adjustments for titleBarOverlay */
+.app.platform-win32 .header {
+  padding-right: 140px;
 }
 
 .tabs {

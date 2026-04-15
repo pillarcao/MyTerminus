@@ -72,6 +72,7 @@ const api = {
   listLocalDir: (dirPath: string) => ipcRenderer.invoke('local:list', dirPath),
   uploadToRemote: (localPath: string, remotePath: string, connectionId: string) =>
     ipcRenderer.invoke('local:upload', localPath, remotePath, connectionId),
+  platform: process.platform,
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

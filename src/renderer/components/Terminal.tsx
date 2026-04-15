@@ -13,6 +13,8 @@ interface Props {
   connectionId: string;
   tabId: string;
   terminalTheme?: TerminalTheme;
+  cursorStyle?: 'block' | 'underline' | 'bar';
+  cursorBlink?: boolean;
 }
 
 const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string }> = {
@@ -24,7 +26,13 @@ const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: s
   blue: { background: 'rgba(10, 25, 41, 0.85)', foreground: '#64d6ff', cursor: '#64d6ff' },
 };
 
-export default function Terminal({ connectionId, tabId, terminalTheme = 'default' }: Props) {
+export default function Terminal({ 
+  connectionId, 
+  tabId, 
+  terminalTheme = 'default',
+  cursorStyle = 'block',
+  cursorBlink = true
+}: Props) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -90,7 +98,8 @@ export default function Terminal({ connectionId, tabId, terminalTheme = 'default
     } else {
       // Create new xterm and cache it
       xterm = new XTerm({
-        cursorBlink: true,
+        cursorBlink: cursorBlink,
+        cursorStyle: cursorStyle,
         fontSize: 14,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: {

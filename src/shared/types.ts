@@ -15,6 +15,8 @@ export interface Connection {
   privateKeyPath?: string;
   groupId?: string;
   terminalTheme?: 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue';
+  cursorStyle?: 'block' | 'underline' | 'bar';
+  cursorBlink?: boolean;
 }
 
 export interface SFTPFile {
@@ -179,6 +181,7 @@ declare global {
 
       exportConfig: () => Promise<{ success: boolean; message: string }>;
       importConfig: () => Promise<{ success: boolean; message: string }>;
+      platform: string;
     };
   }
 }
