@@ -125,6 +125,11 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
                 <option value="monokai">Monokai</option>
                 <option value="green">Green (Hacker)</option>
                 <option value="blue">Blue (Ocean)</option>
+                <option value="nord">Nord (Arctic)</option>
+                <option value="dracula">Dracula (Vampire)</option>
+                <option value="solarized">Solarized (Oceania)</option>
+                <option value="synthwave">Synthwave (Neon)</option>
+                <option value="one-dark">One Dark</option>
               </select>
             </div>
             <div className="form-row">

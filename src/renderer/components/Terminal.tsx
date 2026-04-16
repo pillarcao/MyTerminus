@@ -7,7 +7,7 @@ const xtermCache: Map<string, XTerm> = new Map();
 const shellReady: Map<string, boolean> = new Map();
 const dataListenerCleanup: Map<string, () => void> = new Map();
 
-type TerminalTheme = 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue';
+type TerminalTheme = 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue' | 'nord' | 'dracula' | 'solarized' | 'synthwave' | 'one-dark';
 
 interface Props {
   connectionId: string;
@@ -18,12 +18,17 @@ interface Props {
 }
 
 const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string }> = {
-  default: { background: 'rgba(12, 12, 12, 0.85)', foreground: '#cccccc', cursor: '#cccccc' },
-  dark: { background: 'rgba(30, 30, 30, 0.85)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
-  light: { background: 'rgba(255, 255, 255, 0.85)', foreground: '#000000', cursor: '#000000' },
-  monokai: { background: 'rgba(39, 40, 34, 0.85)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
-  green: { background: 'rgba(13, 17, 23, 0.85)', foreground: '#00ff00', cursor: '#00ff00' },
-  blue: { background: 'rgba(10, 25, 41, 0.85)', foreground: '#64d6ff', cursor: '#64d6ff' },
+  default: { background: 'rgba(12, 12, 12, 0.4)', foreground: '#cccccc', cursor: '#cccccc' },
+  dark: { background: 'rgba(30, 30, 30, 0.4)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
+  light: { background: 'rgba(255, 255, 255, 0.3)', foreground: '#000000', cursor: '#000000' },
+  monokai: { background: 'rgba(39, 40, 34, 0.4)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  green: { background: 'rgba(13, 17, 23, 0.4)', foreground: '#00ff00', cursor: '#00ff00' },
+  blue: { background: 'rgba(10, 25, 41, 0.4)', foreground: '#64d6ff', cursor: '#64d6ff' },
+  nord: { background: 'rgba(46, 52, 64, 0.4)', foreground: '#d8dee9', cursor: '#d8dee9' },
+  dracula: { background: 'rgba(40, 42, 54, 0.4)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  solarized: { background: 'rgba(0, 43, 54, 0.4)', foreground: '#839496', cursor: '#839496' },
+  synthwave: { background: 'rgba(43, 15, 75, 0.4)', foreground: '#ff7edb', cursor: '#ff7edb' },
+  'one-dark': { background: 'rgba(40, 44, 52, 0.4)', foreground: '#abb2bf', cursor: '#abb2bf' },
 };
 
 export default function Terminal({ 
@@ -105,6 +110,7 @@ export default function Terminal({
         theme: {
           ...TERMINAL_THEMES[validTheme],
         },
+        allowTransparency: true,
         scrollback: 10000,
         allowProposedApi: true,
       });

@@ -144,7 +144,6 @@ export default function Sidebar({
         <div className={`host-status-dot ${isConnected ? 'connected' : ''}`} />
         <div className="host-item-info">
           <div className="host-item-name">{conn.name}</div>
-          <div className="host-item-address">{conn.host}:{conn.port}</div>
         </div>
         <div className="host-item-actions">
           {isConnected ? (
