@@ -431,6 +431,7 @@ h1, h2, h3, h4, h5, h6, strong, .font-semibold {
   flex-direction: column;
   background: var(--bg-primary);
   min-width: 0;
+  position: relative;
 }
 
 /* Header with tabs */
@@ -2066,7 +2067,113 @@ h1, h2, h3, h4, h5, h6, strong, .font-semibold {
 }
 
 .btn-fill img {
-  height: 100%;
-  width: auto;
-  object-fit: contain;
+  height: 24px;
+}
+
+/* Command Bar Redesign */
+.command-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  z-index: 1000;
+  animation: slide-up-fade 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: var(--shadow-medium);
+}
+
+.command-bar-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.command-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.command-bar-title-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.command-bar-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.command-bar-body {
+  width: 100%;
+}
+
+.command-bar-input {
+  width: 100%;
+  background: hsla(0, 0%, 0%, 0.05);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.6;
+  outline: none;
+  transition: all var(--transition-normal);
+}
+
+[data-theme="dark"] .command-bar-input {
+  background: hsla(0, 0%, 100%, 0.05);
+}
+
+.command-bar-input:focus {
+  border-color: var(--accent);
+  background: hsla(0, 0%, 0%, 0.08);
+  box-shadow: 0 0 0 4px var(--accent-light);
+}
+
+[data-theme="dark"] .command-bar-input:focus {
+  background: hsla(0, 0%, 100%, 0.08);
+}
+
+.command-bar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.command-bar-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.command-bar-select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+.command-bar-select:hover {
+  border-color: var(--border);
 }

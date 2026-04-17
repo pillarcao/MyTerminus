@@ -9,6 +9,7 @@ import HostDetail from './components/HostDetail';
 import TabBar from './components/TabBar';
 import Terminal from './components/Terminal';
 import SFTPBrowser from './components/SFTPBrowser';
+import CommandBar from './components/CommandBar';
 
 export default function App() {
   const {
@@ -25,6 +26,8 @@ export default function App() {
     setTheme,
     setSftpPath,
     addTab,
+    showCommandBar,
+    setShowCommandBar,
   } = useAppStore();
 
   const [showConnectionModal, setShowConnectionModal] = useState(false);
@@ -220,6 +223,22 @@ export default function App() {
     await window.electronAPI.setTheme(themeId);
   };
 
+  const handleSendCommand = (command: string, target: 'current' | 'all') => {
+    // Append newline if not present
+    const cmd = command.endsWith('\n') ? command : command + '\n';
+    
+    if (target === 'current') {
+      if (activeTabId && tabs.find(t => t.id === activeTabId)?.type === 'terminal') {
+        window.electronAPI.sshInput(activeTabId, cmd);
+      }
+    } else {
+      // Send to all open terminal tabs
+      tabs.filter(t => t.type === 'terminal').forEach(tab => {
+        window.electronAPI.sshInput(tab.id, cmd);
+      });
+    }
+  };
+
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
@@ -228,6 +247,13 @@ export default function App() {
       <div className="header">
         <TabBar onTabClose={handleTabClose} />
         <div className="header-right">
+          <button 
+            className={`btn-icon ${showCommandBar ? 'active' : ''}`} 
+            onClick={() => setShowCommandBar(!showCommandBar)}
+            title="Toggle Command Bar (Batch Send)"
+          >
+            ⌨️
+          </button>
           <ThemeSelector currentTheme={currentTheme.id} onChange={handleThemeChange} />
         </div>
       </div>
@@ -292,6 +318,12 @@ export default function App() {
             <span>{error}</span>
             <button className="btn-icon" onClick={() => setError(null)}>✕</button>
           </div>
+        )}
+        {showCommandBar && (
+          <CommandBar 
+            onSendCommand={handleSendCommand} 
+            onClose={() => setShowCommandBar(false)} 
+          />
         )}
       </div>
       {showConnectionModal && (
