@@ -61,6 +61,21 @@ MyTerminus 是一个基于 Electron + TypeScript 开发的高级 SSH/SFTP 桌面
 - **底层通信**：ssh2, xterm.js
 - **安全性**：机密信息在本地加密存储。
 
----
+
+## UI 展示
+-- **主页面**
+<img width="2392" height="1598" alt="image" src="https://github.com/user-attachments/assets/8550c39f-f214-4338-a2f1-878e38bb9545" />
+
+-- **SSH终端**
+支持不同的主题
+<img width="2396" height="1584" alt="image" src="https://github.com/user-attachments/assets/96e47f58-2207-4a6e-86fb-e1a221b38e9e" />
+
+-- **SFTP**
+<img width="2396" height="1588" alt="image" src="https://github.com/user-attachments/assets/66d83f44-8d96-407a-a2bc-1b1c2c2db397" />
+
+
+
+
+
 
 *版本：1.1.0 | 更新日期：2026-04-17*
