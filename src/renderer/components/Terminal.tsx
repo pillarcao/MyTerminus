@@ -19,15 +19,15 @@ interface Props {
 
 const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string }> = {
   default: { background: 'rgba(12, 12, 12, 0.4)', foreground: '#cccccc', cursor: '#cccccc' },
-  dark: { background: 'rgba(30, 30, 30, 0.2)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
-  light: { background: 'rgba(255, 255, 255, 0.4)', foreground: '#000000', cursor: '#000000' },
-  monokai: { background: 'rgba(39, 40, 34, 0.2)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  dark: { background: 'rgba(30, 30, 30, 0.86)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
+  light: { background: 'rgba(255, 255, 255, 0.86)', foreground: '#000000', cursor: '#000000' },
+  monokai: { background: 'rgba(16, 15, 15, 0.86)', foreground: '#d8eef3ff', cursor: '#f8f8f2' },
   green: { background: 'rgba(13, 17, 23, 0.2)', foreground: '#00ff00', cursor: '#00ff00' },
-  blue: { background: 'rgba(10, 25, 41, 0.2)', foreground: '#64d6ff', cursor: '#64d6ff' },
-  nord: { background: 'rgba(46, 52, 64, 0.2)', foreground: '#d8dee9', cursor: '#d8dee9' },
-  dracula: { background: 'rgba(40, 42, 54, 0.2)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
-  solarized: { background: 'rgba(0, 43, 54, 0.2)', foreground: '#839496', cursor: '#839496' },
-  synthwave: { background: 'rgba(43, 15, 75, 0.2)', foreground: '#ff7edb', cursor: '#ff7edb' },
+  blue: { background: 'rgba(0, 0, 0, 0.2)', foreground: '#06b7f8ff', cursor: '#64d6ff' },
+  nord: { background: 'rgba(0, 0, 0, 0.86)', foreground: '#0559f5ff', cursor: '#0559f5ff' },
+  dracula: { background: 'rgba(0, 0, 0, 0.86)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  solarized: { background: 'rgba(0, 0, 0, 0.86)', foreground: '#71e5f2ff', cursor: '#71e5f2ff' },
+  synthwave: { background: 'rgba(0, 0, 0, 0.86)', foreground: '#ff7edb', cursor: '#ff7edb' },
   'one-dark': { background: 'rgba(40, 44, 52, 0.2)', foreground: '#abb2bf', cursor: '#abb2bf' },
 };
 
