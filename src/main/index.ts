@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOptions, clipboard } from 'electron';
 import * as path from 'path';
 import * as os from 'os';
 import Store from 'electron-store';
@@ -207,6 +207,27 @@ app.on('window-all-closed', () => {
 });
 
 // IPC Handlers
+ipcMain.handle('clipboard:read', () => {
+  try {
+    const text = clipboard.readText();
+    console.log('[Main] Clipboard read successful, text length:', text.length);
+    return text;
+  } catch (error) {
+    console.error('[Main] Error reading clipboard:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('clipboard:write', (_event, text: string) => {
+  try {
+    clipboard.writeText(text);
+    console.log('[Main] Clipboard write successful, text length:', text.length);
+    return true;
+  } catch (error) {
+    console.error('[Main] Error writing to clipboard:', error);
+    throw error;
+  }
+});
 
 // Connection management
 ipcMain.handle('connections:list', () => {

@@ -19,21 +19,21 @@ interface Props {
 
 const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string }> = {
   default: { background: 'rgba(12, 12, 12, 0.4)', foreground: '#cccccc', cursor: '#cccccc' },
-  dark: { background: 'rgba(30, 30, 30, 0.4)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
-  light: { background: 'rgba(255, 255, 255, 0.3)', foreground: '#000000', cursor: '#000000' },
-  monokai: { background: 'rgba(39, 40, 34, 0.4)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
-  green: { background: 'rgba(13, 17, 23, 0.4)', foreground: '#00ff00', cursor: '#00ff00' },
-  blue: { background: 'rgba(10, 25, 41, 0.4)', foreground: '#64d6ff', cursor: '#64d6ff' },
-  nord: { background: 'rgba(46, 52, 64, 0.4)', foreground: '#d8dee9', cursor: '#d8dee9' },
-  dracula: { background: 'rgba(40, 42, 54, 0.4)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
-  solarized: { background: 'rgba(0, 43, 54, 0.4)', foreground: '#839496', cursor: '#839496' },
-  synthwave: { background: 'rgba(43, 15, 75, 0.4)', foreground: '#ff7edb', cursor: '#ff7edb' },
-  'one-dark': { background: 'rgba(40, 44, 52, 0.4)', foreground: '#abb2bf', cursor: '#abb2bf' },
+  dark: { background: 'rgba(30, 30, 30, 0.2)', foreground: '#d4d4d4', cursor: '#d4d4d4' },
+  light: { background: 'rgba(255, 255, 255, 0.4)', foreground: '#000000', cursor: '#000000' },
+  monokai: { background: 'rgba(39, 40, 34, 0.2)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  green: { background: 'rgba(13, 17, 23, 0.2)', foreground: '#00ff00', cursor: '#00ff00' },
+  blue: { background: 'rgba(10, 25, 41, 0.2)', foreground: '#64d6ff', cursor: '#64d6ff' },
+  nord: { background: 'rgba(46, 52, 64, 0.2)', foreground: '#d8dee9', cursor: '#d8dee9' },
+  dracula: { background: 'rgba(40, 42, 54, 0.2)', foreground: '#f8f8f2', cursor: '#f8f8f2' },
+  solarized: { background: 'rgba(0, 43, 54, 0.2)', foreground: '#839496', cursor: '#839496' },
+  synthwave: { background: 'rgba(43, 15, 75, 0.2)', foreground: '#ff7edb', cursor: '#ff7edb' },
+  'one-dark': { background: 'rgba(40, 44, 52, 0.2)', foreground: '#abb2bf', cursor: '#abb2bf' },
 };
 
-export default function Terminal({ 
-  connectionId, 
-  tabId, 
+export default function Terminal({
+  connectionId,
+  tabId,
   terminalTheme = 'default',
   cursorStyle = 'block',
   cursorBlink = true
@@ -114,6 +114,32 @@ export default function Terminal({
         scrollback: 10000,
         allowProposedApi: true,
       });
+
+      // Enable right-click to paste
+      const container = terminalRef.current;
+      const handleContextMenu = async (e: MouseEvent) => {
+        e.preventDefault();
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            window.electronAPI.sshInput(tabId, text);
+          }
+        } catch (err) {
+          console.error('Failed to paste from clipboard:', err);
+        }
+      };
+
+      container.addEventListener('contextmenu', handleContextMenu);
+
+      // Enable copy on selection
+      xterm.onSelectionChange(() => {
+        const selection = xterm.getSelection();
+        if (selection) {
+          navigator.clipboard.writeText(selection).catch((err) => {
+            console.error('Failed to copy selection to clipboard:', err);
+          });
+        }
+      });
       xterm.open(terminalRef.current);
       xtermCache.set(tabId, xterm);
       xtermRef.current = xterm;
@@ -122,24 +148,61 @@ export default function Terminal({
       initShell(xterm);
     }
 
+    const currentXterm = xterm!;
+    const container = terminalRef.current!;
+
+    // Enable right-click to paste
+    const handleContextMenu = async (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      try {
+        console.log('[Terminal] Right-click detected, attempting to paste...');
+        const text = await window.electronAPI.clipboardRead();
+        console.log('[Terminal] Clipboard content read, length:', text?.length || 0);
+        if (text) {
+          window.electronAPI.sshInput(tabId, text);
+          console.log('[Terminal] Paste command sent to SSH session');
+        }
+      } catch (err: any) {
+        console.error('[Terminal] CRITICAL: Failed to paste from clipboard:', err);
+        // Show a brief tip to the user via xterm if possible? Or just console.
+      }
+    };
+
+    container.addEventListener('contextmenu', handleContextMenu, true);
+
+    // Enable copy on selection
+    const selectionListener = currentXterm.onSelectionChange(() => {
+      const selection = currentXterm.getSelection();
+      if (selection) {
+        window.electronAPI.clipboardWrite(selection).catch((err: Error) => {
+          console.error('Failed to copy selection to clipboard:', err);
+        });
+      }
+    });
+
     // Handle resize
     const handleResize = () => {
-      if (terminalRef.current && xtermRef.current) {
-        const cols = Math.floor(terminalRef.current.offsetWidth / 8);
-        const rows = Math.floor(terminalRef.current.offsetHeight / 16);
+      if (container && currentXterm) {
+        const cols = Math.floor(container.offsetWidth / 8);
+        const rows = Math.floor(container.offsetHeight / 16);
         if (cols > 0 && rows > 0) {
-          xtermRef.current.resize(cols, rows);
+          currentXterm.resize(cols, rows);
           window.electronAPI.sshResize(tabId, cols, rows);
         }
       }
     };
 
     resizeObserverRef.current = new ResizeObserver(handleResize);
-    resizeObserverRef.current.observe(terminalRef.current);
+    resizeObserverRef.current.observe(container);
     setTimeout(handleResize, 100);
 
-    // Cleanup: don't destroy xterm, just disconnect observer
+    // Cleanup
     return () => {
+      container.removeEventListener('contextmenu', handleContextMenu, true);
+      selectionListener.dispose();
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;

@@ -181,6 +181,8 @@ declare global {
 
       exportConfig: () => Promise<{ success: boolean; message: string }>;
       importConfig: () => Promise<{ success: boolean; message: string }>;
+      clipboardRead: () => Promise<string>;
+      clipboardWrite: (text: string) => Promise<boolean>;
       platform: string;
     };
   }

@@ -72,6 +72,8 @@ const api = {
   listLocalDir: (dirPath: string) => ipcRenderer.invoke('local:list', dirPath),
   uploadToRemote: (localPath: string, remotePath: string, connectionId: string) =>
     ipcRenderer.invoke('local:upload', localPath, remotePath, connectionId),
+  clipboardRead: () => ipcRenderer.invoke('clipboard:read'),
+  clipboardWrite: (text: string) => ipcRenderer.invoke('clipboard:write', text),
   platform: process.platform,
 };
 
