@@ -11,11 +11,10 @@
   --bg-tertiary: hsla(240, 5%, 96%, 0.20);
   --bg-hover: hsla(0, 0%, 0%, 0.05);
 
-  /* Elevated Typography */
-  --text-primary: #1d1d1f;
-  /* San Francisco style black */
-  --text-secondary: #636366;
-  --text-muted: #86868b;
+  /* Elevated Typography - high contrast */
+  --text-primary: #000000;
+  --text-secondary: #4a4a4f;
+  --text-muted: #6e6e73;
 
   /* Refined Steel Blue Accent */
   --accent: #007aff;
@@ -24,8 +23,8 @@
   --accent-light: hsla(210, 100%, 50%, 0.12);
 
   /* Light-Leak Borders */
-  --border: hsla(0, 0%, 0%, 0.08);
-  --border-light: hsla(0, 0%, 0%, 0.04);
+  --border: hsla(0, 0%, 0%, 0.12);
+  --border-light: hsla(0, 0%, 0%, 0.06);
   --glass-border: hsla(0, 0%, 100%, 0.4);
 
   /* Unified Soft Shadows */
@@ -47,30 +46,15 @@
   --blur: 40px;
   --glass-saturate: 180%;
 
+  /* Glass background for light theme */
+  --glass-bg: hsla(0, 0%, 100%, 0.25);
+
   /* Motion */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --transition-fast: 0.2s var(--ease-out);
   --transition-normal: 0.3s var(--ease-out);
 }
 
-/* Minimalist Dark glassmorphism */
-[data-theme="dark"] {
-  --bg-primary: hsla(240, 5%, 8%, 0.40);
-  --bg-secondary: hsla(240, 4%, 12%, 0.35);
-  --bg-tertiary: hsla(240, 4%, 16%, 0.30);
-  --bg-hover: hsla(0, 0%, 100%, 0.08);
-
-  --text-primary: #f5f5f7;
-  --text-secondary: #a1a1a6;
-  --text-muted: #86868b;
-
-  --border: hsla(0, 0%, 100%, 0.1);
-  --border-light: hsla(0, 0%, 100%, 0.06);
-  --glass-border: hsla(0, 0%, 100%, 0.1);
-
-  --shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.4);
-  --glass-bg: hsla(240, 4%, 12%, 0.2);
-}
 
 html,
 body {
@@ -184,7 +168,9 @@ strong,
 .sidebar {
   width: 280px;
   min-width: 280px;
-  background: hsla(240, 5%, 96%, 0.1);
+  background: var(--glass-bg);
+  backdrop-filter: blur(48px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
@@ -453,8 +439,8 @@ strong,
   background: var(--glass-bg);
   border-bottom: 1px solid var(--border);
   min-height: 48px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   -webkit-app-region: drag;
   padding-right: 0;
 }
@@ -1428,6 +1414,9 @@ strong,
   padding: 24px;
   overflow-y: auto;
   font-size: 13px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .host-detail.empty {
@@ -1744,10 +1733,9 @@ strong,
   flex-direction: column;
   padding: 28px;
   overflow: hidden;
-  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .host-list-empty {
@@ -1757,6 +1745,9 @@ strong,
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .host-list-header {
@@ -1795,10 +1786,6 @@ strong,
   overflow: hidden;
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
-  background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  box-shadow: var(--glass-shadow);
   font-size: 13px;
 }
 
@@ -2192,9 +2179,6 @@ strong,
   transition: all var(--transition-normal);
 }
 
-[data-theme="dark"] .command-bar-input {
-  background: hsla(0, 0%, 100%, 0.05);
-}
 
 .command-bar-input:focus {
   border-color: var(--accent);
@@ -2202,9 +2186,6 @@ strong,
   box-shadow: 0 0 0 4px var(--accent-light);
 }
 
-[data-theme="dark"] .command-bar-input:focus {
-  background: hsla(0, 0%, 100%, 0.08);
-}
 
 .command-bar-footer {
   display: flex;

@@ -90,7 +90,7 @@ export const useAppStore = create<AppState>((set) => ({
   setTheme: (themeId) => {
     const theme = THEMES.find(t => t.id === themeId) || THEMES[0];
     set({ currentTheme: theme });
-    // Apply theme to CSS variables
+    // Apply theme CSS variables
     const root = document.documentElement;
     Object.entries(theme.colors).forEach(([key, value]) => {
       const cssKey = '--' + key.replace(/([A-Z])/g, '-$1').toLowerCase();

@@ -61,79 +61,14 @@ export const THEMES: Theme[] = [
       bgPrimary: 'rgba(246, 246, 246, 0.85)',
       bgSecondary: 'rgba(255, 255, 255, 0.85)',
       bgTertiary: 'rgba(242, 242, 242, 0.85)',
-      textPrimary: '#1d1d1f',
-      textSecondary: '#6e6e73',
-      textMuted: '#a1a1a6',
+      textPrimary: '#000000',
+      textSecondary: '#4a4a4f',
+      textMuted: '#6e6e73',
       accent: '#007aff',
       accentHover: '#0056cc',
-      border: 'rgba(0, 0, 0, 0.1)',
+      border: 'rgba(0, 0, 0, 0.15)',
       success: '#34c759',
       error: '#ff3b30',
-    },
-  },
-  {
-    id: 'dark',
-    name: 'Dark',
-    colors: {
-      bgPrimary: 'rgba(30, 30, 30, 0.85)',
-      bgSecondary: 'rgba(37, 37, 38, 0.85)',
-      bgTertiary: 'rgba(45, 45, 48, 0.85)',
-      textPrimary: '#f5f5f7',
-      textSecondary: '#98989d',
-      textMuted: '#6e6e73',
-      accent: '#0a84ff',
-      accentHover: '#409cff',
-      border: 'rgba(255, 255, 255, 0.1)',
-      success: '#30d158',
-      error: '#ff453a',
-    },
-  },
-  {
-    id: 'monokai',
-    name: 'Monokai',
-    colors: {
-      bgPrimary: '#272822',
-      bgSecondary: '#3e3d32',
-      bgTertiary: '#49483e',
-      textPrimary: '#f8f8f2',
-      textSecondary: '#a59f85',
-      accent: '#ae81ff',
-      accentHover: '#cc78ff',
-      border: '#5b595c',
-      success: '#a6e22e',
-      error: '#f92672',
-    },
-  },
-  {
-    id: 'solarized-dark',
-    name: 'Solarized Dark',
-    colors: {
-      bgPrimary: '#002b36',
-      bgSecondary: '#073642',
-      bgTertiary: '#094050',
-      textPrimary: '#839496',
-      textSecondary: '#657b83',
-      accent: '#268bd2',
-      accentHover: '#2aa198',
-      border: '#073642',
-      success: '#859900',
-      error: '#dc322f',
-    },
-  },
-  {
-    id: 'one-dark',
-    name: 'One Dark',
-    colors: {
-      bgPrimary: '#282c34',
-      bgSecondary: '#21252b',
-      bgTertiary: '#2c313a',
-      textPrimary: '#abb2bf',
-      textSecondary: '#5c6370',
-      accent: '#61afef',
-      accentHover: '#98c379',
-      border: '#181a1f',
-      success: '#98c379',
-      error: '#e06c75',
     },
   },
 ];
@@ -149,9 +84,6 @@ declare global {
       listGroups: () => Promise<Group[]>;
       saveGroup: (group: Group) => Promise<Group>;
       deleteGroup: (id: string) => Promise<boolean>;
-
-      getTheme: () => Promise<string>;
-      setTheme: (themeId: string) => Promise<void>;
 
       sshConnect: (connectionId: string, config: any) => Promise<{ success: boolean }>;
       sshDisconnect: (connectionId: string) => Promise<boolean>;

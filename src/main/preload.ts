@@ -12,10 +12,6 @@ const api = {
   saveGroup: (group: any) => ipcRenderer.invoke('groups:save', group),
   deleteGroup: (id: string) => ipcRenderer.invoke('groups:delete', id),
 
-  // Theme
-  getTheme: () => ipcRenderer.invoke('theme:get'),
-  setTheme: (themeId: string) => ipcRenderer.invoke('theme:set', themeId),
-
   // SSH operations
   sshConnect: (connectionId: string, config: any) =>
     ipcRenderer.invoke('ssh:connect', connectionId, config),

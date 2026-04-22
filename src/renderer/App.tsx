@@ -3,7 +3,6 @@ import { useAppStore } from './stores/appStore';
 import { Connection, Group } from '@shared/types';
 import ConnectionModal from './components/ConnectionModal';
 import GroupModal from './components/GroupModal';
-import ThemeSelector from './components/ThemeSelector';
 import Sidebar from './components/Sidebar';
 import HostDetail from './components/HostDetail';
 import TabBar from './components/TabBar';
@@ -22,8 +21,6 @@ export default function App() {
     setConnecting,
     setError,
     error,
-    currentTheme,
-    setTheme,
     setSftpPath,
     addTab,
     showCommandBar,
@@ -50,14 +47,12 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [connectionsList, groupsList, themeId] = await Promise.all([
+      const [connectionsList, groupsList] = await Promise.all([
         window.electronAPI.listConnections(),
         window.electronAPI.listGroups(),
-        window.electronAPI.getTheme(),
       ]);
       setConnections(connectionsList);
       setGroups(groupsList);
-      setTheme(themeId);
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -218,11 +213,6 @@ export default function App() {
     }
   };
 
-  const handleThemeChange = async (themeId: string) => {
-    setTheme(themeId);
-    await window.electronAPI.setTheme(themeId);
-  };
-
   const handleSendCommand = (command: string, target: 'current' | 'all') => {
     // Append newline if not present
     const cmd = command.endsWith('\n') ? command : command + '\n';
@@ -247,14 +237,13 @@ export default function App() {
       <div className="header">
         <TabBar onTabClose={handleTabClose} />
         <div className="header-right">
-          <button 
-            className={`btn-icon ${showCommandBar ? 'active' : ''}`} 
+          <button
+            className={`btn-icon ${showCommandBar ? 'active' : ''}`}
             onClick={() => setShowCommandBar(!showCommandBar)}
             title="Toggle Command Bar (Batch Send)"
           >
             ⌨️
           </button>
-          <ThemeSelector currentTheme={currentTheme.id} onChange={handleThemeChange} />
         </div>
       </div>
       <div className="main-content">

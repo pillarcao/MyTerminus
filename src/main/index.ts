@@ -295,15 +295,6 @@ ipcMain.handle('groups:delete', (_event, id: string) => {
   return true;
 });
 
-// Theme
-ipcMain.handle('theme:get', () => {
-  return store.get('theme', 'dark') as string;
-});
-
-ipcMain.handle('theme:set', (_event, themeId: string) => {
-  store.set('theme', themeId);
-});
-
 // SSH connection
 ipcMain.handle('ssh:connect', async (_event, connectionId: string, config: any) => {
   return new Promise((resolve, reject) => {
