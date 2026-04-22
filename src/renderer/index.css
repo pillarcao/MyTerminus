@@ -112,11 +112,8 @@ strong,
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: var(--bg-primary);
-  backdrop-filter: blur(var(--blur)) saturate(var(--glass-saturate)) brightness(1.05);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--glass-saturate)) brightness(1.05);
+  background: transparent;
   border: 1px solid var(--glass-border);
-  /* Subtle hairline border */
 }
 
 @keyframes slide-up-fade {
@@ -156,7 +153,7 @@ strong,
   flex: 1;
   display: flex;
   overflow: hidden;
-  background: hsla(0, 0%, 100%, 0.02);
+  background: transparent;
 }
 
 .split-view-container {
@@ -444,7 +441,7 @@ strong,
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
+  background: transparent;
   min-width: 0;
   position: relative;
 }
@@ -878,19 +875,23 @@ strong,
 .terminal-container {
   flex: 1;
   padding: 0;
-  background: rgba(13, 13, 13, 0.75);
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: transparent;
+  backdrop-filter: blur(48px) saturate(200%) brightness(0.95);
+  -webkit-backdrop-filter: blur(48px) saturate(200%) brightness(0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   position: relative;
   overflow: hidden;
+  /* Crisp font rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .terminal-container::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 30%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 20%);
   pointer-events: none;
   z-index: 0;
 }
