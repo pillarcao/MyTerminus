@@ -201,9 +201,16 @@ export default function Terminal({
     // Handle resize
     const handleResize = () => {
       if (container && currentXterm) {
-        const cols = Math.floor(container.offsetWidth / 8);
-        const rows = Math.floor(container.offsetHeight / 16);
-        if (cols > 0 && rows > 0) {
+        // Measure actual cell size from xterm internals for accurate cols/rows
+        const dims = (currentXterm as any)._core?._renderService?.dimensions;
+        const cellWidth = dims?.css?.cell?.width ?? 8.4;
+        const cellHeight = dims?.css?.cell?.height ?? 16.8;
+        // Account for 8px padding on all sides from .terminal-container .xterm
+        const padX = 16;
+        const padY = 16;
+        const cols = Math.max(1, Math.floor((container.clientWidth - padX) / cellWidth));
+        const rows = Math.max(1, Math.floor((container.clientHeight - padY) / cellHeight));
+        if (cols !== currentXterm.cols || rows !== currentXterm.rows) {
           currentXterm.resize(cols, rows);
           window.electronAPI.sshResize(tabId, cols, rows);
         }
@@ -244,9 +251,14 @@ export default function Terminal({
         // Set up data listener for this tab's xterm
         setupDataListener(xterm);
 
-        // Handle user input - send to SSH
+        // Handle user input - send to SSH and keep cursor visible
         xterm.onData((data: string) => {
           window.electronAPI.sshInput(tabId, data);
+          requestAnimationFrame(() => {
+            const buffer = xterm.buffer.active;
+            const cursorLine = buffer.baseY + buffer.cursorY;
+            xterm.scrollToLine(cursorLine);
+          });
         });
 
         // Handle close
@@ -271,6 +283,12 @@ export default function Terminal({
     // Set up data listener - receive output from SSH
     const removeDataListener = window.electronAPI.onSshData(tabId, (data: string) => {
       xterm.write(data);
+      // Defer scroll to ensure xterm has finished rendering
+      requestAnimationFrame(() => {
+        const buffer = xterm.buffer.active;
+        const cursorLine = buffer.baseY + buffer.cursorY;
+        xterm.scrollToLine(cursorLine);
+      });
     });
 
     dataListenerCleanup.set(tabId, removeDataListener);
