@@ -19,27 +19,27 @@ interface Props {
 
 const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string; selectionBackground: string }> = {
   // Classic — neutral glass, soft white text
-  default: { background: 'rgba(20, 20, 22, 0.26)', foreground: '#e0e0e0', cursor: '#e0e0e0', selectionBackground: 'rgba(255,255,255,0.18)' },
+  default: { background: 'rgba(20, 20, 22, 0.20)', foreground: '#e0e0e0', cursor: '#e0e0e0', selectionBackground: 'rgba(255,255,255,0.18)' },
   // Deep Dark — near-black glass, crisp white
-  dark: { background: 'rgba(10, 10, 12, 0.26)', foreground: '#f0f0f0', cursor: '#f0f0f0', selectionBackground: 'rgba(255,255,255,0.15)' },
+  dark: { background: 'rgba(1, 1, 20, 0.2)', foreground: '#f0f0f0', cursor: '#f0f0f0', selectionBackground: 'rgba(255,255,255,0.15)' },
   // Light Glass — frosted white, dark ink
-  light: { background: 'rgba(245, 245, 250, 0.26)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(0,0,0,0.12)' },
+  light: { background: 'rgba(245, 245, 250, 0.20)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(0,0,0,0.12)' },
   // Monokai Pro — warm dark glass, golden accents
-  monokai: { background: 'rgba(18, 17, 15, 0.26)', foreground: '#f8f8f2', cursor: '#f9e64f', selectionBackground: 'rgba(249,230,79,0.18)' },
+  monokai: { background: 'rgba(18, 17, 15, 0.20)', foreground: '#1a1a2e', cursor: '#f94f4fff', selectionBackground: 'rgba(249,230,79,0.18)' },
   // Matrix — deep black glass, neon green
-  green: { background: 'rgba(5, 10, 8, 0.26)', foreground: '#39ff14', cursor: '#39ff14', selectionBackground: 'rgba(57,255,20,0.16)' },
+  green: { background: 'rgba(106, 223, 176, 0.2)', foreground: '#1a1a2e', cursor: '#190beaff', selectionBackground: 'rgba(57,255,20,0.16)' },
   // Ocean — midnight blue glass, cyan glow
-  blue: { background: 'rgba(5, 12, 28, 0.26)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(56,189,248,0.18)' },
+  blue: { background: 'rgba(15, 82, 237, 0.2)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(56,189,248,0.18)' },
   // Nord Aurora — arctic dark glass, frost white
-  nord: { background: 'rgba(36, 41, 51, 0.26)', foreground: '#eceff4', cursor: '#88c0d0', selectionBackground: 'rgba(136,192,208,0.18)' },
+  nord: { background: 'rgba(64, 81, 116, 0.2)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(136,192,208,0.18)' },
   // Dracula — purple-tinted glass, pink accents
-  dracula: { background: 'rgba(30, 25, 45, 0.26)', foreground: '#f8f8f2', cursor: '#ff79c6', selectionBackground: 'rgba(255,121,198,0.16)' },
+  dracula: { background: 'rgba(66, 7, 243, 0.2)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(255,121,198,0.16)' },
   // Solarized — teal-tinted glass, warm text
-  solarized: { background: 'rgba(0, 30, 38, 0.26)', foreground: '#93a1a1', cursor: '#268bd2', selectionBackground: 'rgba(38,139,210,0.18)' },
+  solarized: { background: 'rgba(7, 196, 248, 0.2)', foreground: '#010808ff', cursor: '#268bd2', selectionBackground: 'rgba(38,139,210,0.18)' },
   // Synthwave — deep purple glass, hot pink neon
-  synthwave: { background: 'rgba(22, 8, 42, 0.26)', foreground: '#ff7edb', cursor: '#f97fff', selectionBackground: 'rgba(249,127,255,0.18)' },
+  synthwave: { background: 'rgba(55, 11, 117, 0.2)', foreground: '#1a1a2e', cursor: '#f97fff', selectionBackground: 'rgba(249,127,255,0.18)' },
   // One Dark — cool grey glass, soft blue accent
-  'one-dark': { background: 'rgba(30, 33, 40, 0.26)', foreground: '#abb2bf', cursor: '#61afef', selectionBackground: 'rgba(97,175,239,0.18)' },
+  'one-dark': { background: 'rgba(30, 33, 40, 0.20)', foreground: '#abb2bf', cursor: '#61afef', selectionBackground: 'rgba(97,175,239,0.18)' },
 };
 
 export default function Terminal({
