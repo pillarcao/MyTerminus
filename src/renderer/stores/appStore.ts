@@ -19,6 +19,7 @@ interface AppState {
   currentTheme: Theme;
   expandedGroups: Set<string>;
   showCommandBar: boolean;
+  glassOpacity: number;
 
   // SFTP state per connection
   sftpPath: Record<string, string>;
@@ -42,6 +43,7 @@ interface AppState {
   setTheme: (themeId: string) => void;
   toggleGroup: (groupId: string) => void;
   setShowCommandBar: (show: boolean) => void;
+  setGlassOpacity: (opacity: number) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>((set) => ({
   sftpFiles: {},
   localPath: {},
   showCommandBar: false,
+  glassOpacity: 0.35,
 
   setConnections: (connections) => set({ connections }),
   setGroups: (groups) => set({ groups }),
@@ -107,4 +110,5 @@ export const useAppStore = create<AppState>((set) => ({
     return { expandedGroups: newExpanded };
   }),
   setShowCommandBar: (show) => set({ showCommandBar: show }),
+  setGlassOpacity: (opacity) => set({ glassOpacity: opacity }),
 }));

@@ -25,6 +25,8 @@ export default function App() {
     addTab,
     showCommandBar,
     setShowCommandBar,
+    glassOpacity,
+    setGlassOpacity,
   } = useAppStore();
 
   const [showConnectionModal, setShowConnectionModal] = useState(false);
@@ -44,6 +46,14 @@ export default function App() {
       title: 'HOST',
     });
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--bg-primary', `hsla(240, 10%, 98%, ${glassOpacity})`);
+    root.style.setProperty('--bg-secondary', `hsla(0, 0%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
+    root.style.setProperty('--bg-tertiary', `hsla(240, 5%, 96%, ${Math.max(0, glassOpacity - 0.15)})`);
+    root.style.setProperty('--glass-bg', `hsla(0, 0%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
+  }, [glassOpacity]);
 
   const loadData = async () => {
     try {
@@ -237,6 +247,19 @@ export default function App() {
       <div className="header">
         <TabBar onTabClose={handleTabClose} />
         <div className="header-right">
+          <div className="opacity-slider" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
+            <span style={{ fontSize: '11px', opacity: 0.7, fontFamily: 'monospace' }}>Glass</span>
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.05"
+              value={glassOpacity}
+              onChange={(e) => setGlassOpacity(parseFloat(e.target.value))}
+              style={{ width: '60px', opacity: 0.8 }}
+              title="Adjust Glassmorphism Transparency"
+            />
+          </div>
           <button
             className={`btn-icon ${showCommandBar ? 'active' : ''}`}
             onClick={() => setShowCommandBar(!showCommandBar)}

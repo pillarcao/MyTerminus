@@ -20,10 +20,15 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [remoteInputPath, setRemoteInputPath] = useState('');
+  const [isEditingRemotePath, setIsEditingRemotePath] = useState(false);
+  const [remoteHistory, setRemoteHistory] = useState<string[]>([]);
+  const [remoteHistoryIndex, setRemoteHistoryIndex] = useState(-1);
 
   const currentPath = sftpPath[connectionId] || '/';
   const files = sftpFiles[connectionId] || [];
   const initialized = useRef(false);
+  const isBlurring = useRef(false);
 
   useEffect(() => {
     if (!initialized.current) {
@@ -57,6 +62,8 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       await window.electronAPI.sftpConnect(connectionId);
       const homePath = await window.electronAPI.sftpHome(connectionId);
       setSftpPath(connectionId, homePath);
+      setRemoteHistory([homePath]);
+      setRemoteHistoryIndex(0);
       // Try to list home path, fallback to root if fails
       try {
         const list = await window.electronAPI.sftpList(connectionId, homePath);
@@ -64,6 +71,8 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       } catch (listErr) {
         console.log('[SFTP] Home path not accessible, trying root:', listErr);
         setSftpPath(connectionId, '/');
+        setRemoteHistory(['/']);
+        setRemoteHistoryIndex(0);
         const rootList = await window.electronAPI.sftpList(connectionId, '/');
         setSftpFiles(connectionId, rootList);
       }
@@ -72,6 +81,8 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       console.log('[SFTP] Init error:', err);
       // Fallback to root
       setSftpPath(connectionId, '/');
+      setRemoteHistory(['/']);
+      setRemoteHistoryIndex(0);
       try {
         const list = await window.electronAPI.sftpList(connectionId, '/');
         setSftpFiles(connectionId, list);
@@ -99,8 +110,47 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     }
   };
 
-  const navigateTo = (path: string) => {
+  const navigateTo = (path: string, pushHistory = true) => {
     setSftpPath(connectionId, path);
+    if (pushHistory) {
+      setRemoteHistory(prev => {
+        const newHistory = prev.slice(0, remoteHistoryIndex + 1);
+        newHistory.push(path);
+        return newHistory;
+      });
+      setRemoteHistoryIndex(prev => prev + 1);
+    }
+  };
+
+  const navigateRemoteBack = () => {
+    if (remoteHistoryIndex > 0) {
+      const prevPath = remoteHistory[remoteHistoryIndex - 1];
+      setRemoteHistoryIndex(remoteHistoryIndex - 1);
+      navigateTo(prevPath, false);
+    }
+  };
+
+  const navigateRemoteForward = () => {
+    if (remoteHistoryIndex < remoteHistory.length - 1) {
+      const nextPath = remoteHistory[remoteHistoryIndex + 1];
+      setRemoteHistoryIndex(remoteHistoryIndex + 1);
+      navigateTo(nextPath, false);
+    }
+  };
+
+  useEffect(() => {
+    setRemoteInputPath(currentPath);
+  }, [currentPath]);
+
+  const handleRemotePathSubmit = () => {
+    isBlurring.current = true;
+    setIsEditingRemotePath(false);
+    if (remoteInputPath !== currentPath) {
+      navigateTo(remoteInputPath || '/');
+    }
+    setTimeout(() => {
+      isBlurring.current = false;
+    }, 200);
   };
 
 
@@ -277,9 +327,6 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          <div className="panel-header">
-            <span className="panel-title">📱 Local</span>
-          </div>
           <LocalBrowser
             tabId={tabId}
             localPath={localPath[tabId]}
@@ -302,13 +349,50 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
         >
           <div className="panel-header">
             <span className="panel-title">🖥 Remote</span>
-            <div className="panel-path">
-              <span onClick={() => navigateTo('/')}>Root</span>
-              {pathParts.map((part, index) => (
-                <span key={index} onClick={() => navigateTo('/' + pathParts.slice(0, index + 1).join('/'))}>
-                  {part}
-                </span>
-              ))}
+            <div className="panel-nav">
+              <button className="btn-icon btn-sm" onClick={navigateRemoteBack} disabled={remoteHistoryIndex <= 0}>&lt;</button>
+              <button className="btn-icon btn-sm" onClick={navigateRemoteForward} disabled={remoteHistoryIndex >= remoteHistory.length - 1}>&gt;</button>
+              <button className="btn-icon btn-sm" onClick={loadFiles} title="Refresh">↻</button>
+            </div>
+            <div 
+              className="panel-path" 
+              onClick={() => {
+                if (!isEditingRemotePath && !isBlurring.current) {
+                  setIsEditingRemotePath(true);
+                }
+              }}
+            >
+              {isEditingRemotePath ? (
+                <input 
+                  type="text" 
+                  value={remoteInputPath}
+                  onChange={(e) => setRemoteInputPath(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRemotePathSubmit()}
+                  onBlur={handleRemotePathSubmit}
+                  className="path-input"
+                  spellCheck={false}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span onClick={(e) => { e.stopPropagation(); navigateTo('/'); }}>Root</span>
+                  {pathParts.map((part, index) => (
+                    <span key={index} onClick={(e) => { 
+                      e.stopPropagation(); 
+                      const parts = pathParts.slice(0, index + 1);
+                      let newPath = parts.join('/');
+                      if (/^[a-zA-Z]:/.test(newPath)) {
+                        newPath = parts.length === 1 ? `${newPath}/` : newPath;
+                      } else {
+                        newPath = `/${newPath}`;
+                      }
+                      navigateTo(newPath); 
+                    }}>
+                      {part}
+                    </span>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { LocalFile } from '@shared/types';
 
 interface Props {
@@ -11,15 +11,22 @@ interface Props {
   showHidden?: boolean;
 }
 
-export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSelect, onDragStart, selectedFile, showHidden = false }: Props) {
+export default function LocalBrowser({ localPath, onPathChange, onFileSelect, onDragStart, selectedFile, showHidden = false }: Props) {
   const [currentPath, setCurrentPath] = useState<string>(localPath || '');
+  const [inputPath, setInputPath] = useState<string>(localPath || '');
+  const [isEditingPath, setIsEditingPath] = useState(false);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isBlurringLocal = useRef(false);
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   useEffect(() => {
     if (localPath) {
       setCurrentPath(localPath);
+      setHistory([localPath]);
+      setHistoryIndex(0);
       loadFiles(localPath);
     } else {
       init();
@@ -30,6 +37,12 @@ export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSel
   useEffect(() => {
     if (localPath && localPath !== currentPath) {
       setCurrentPath(localPath);
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(localPath);
+        return newHistory;
+      });
+      setHistoryIndex(prev => prev + 1);
       loadFiles(localPath);
     }
   }, [localPath]);
@@ -39,6 +52,8 @@ export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSel
       const home = await window.electronAPI.getLocalHome();
       setCurrentPath(home);
       onPathChange?.(home);
+      setHistory([home]);
+      setHistoryIndex(0);
       await loadFiles(home);
     } catch (err) {
       console.error('Failed to init:', err);
@@ -58,21 +73,48 @@ export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSel
     }
   };
 
-  const navigateTo = (dirPath: string) => {
+  const navigateTo = (dirPath: string, pushHistory = true) => {
     setCurrentPath(dirPath);
     onPathChange?.(dirPath);
     loadFiles(dirPath);
+    if (pushHistory) {
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(dirPath);
+        return newHistory;
+      });
+      setHistoryIndex(prev => prev + 1);
+    }
   };
 
-  const navigateUp = () => {
-    const parts = currentPath.split('/').filter(Boolean);
-    if (parts.length <= 1) {
-      // Root on Unix
-      navigateTo('/');
-    } else {
-      parts.pop();
-      const newPath = '/' + parts.join('/');
-      navigateTo(newPath);
+  useEffect(() => {
+    setInputPath(currentPath);
+  }, [currentPath]);
+
+  const handlePathSubmit = () => {
+    isBlurringLocal.current = true;
+    setIsEditingPath(false);
+    if (inputPath !== currentPath) {
+      navigateTo(inputPath || '/');
+    }
+    setTimeout(() => {
+      isBlurringLocal.current = false;
+    }, 200);
+  };
+
+  const navigateBack = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      navigateTo(history[newIndex], false);
+    }
+  };
+
+  const navigateForward = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      navigateTo(history[newIndex], false);
     }
   };
 
@@ -93,26 +135,57 @@ export default function LocalBrowser({ tabId, localPath, onPathChange, onFileSel
     onDragStart(file);
   };
 
-  const pathParts = currentPath.split('/').filter(Boolean);
+  const pathParts = currentPath.split(/[/\\]/).filter(Boolean);
 
   return (
     <div className="file-browser">
-      <div className="browser-toolbar">
-        <button className="btn btn-sm btn-secondary" onClick={() => loadFiles(currentPath)}>
-          ↻
-        </button>
-        <button className="btn btn-sm btn-secondary" onClick={navigateUp} disabled={currentPath === '/'}>
-          ↑
-        </button>
+      <div className="panel-header">
+        <span className="panel-title">📱 Local</span>
+        <div className="panel-nav">
+          <button className="btn-icon btn-sm" onClick={navigateBack} disabled={historyIndex <= 0}>&lt;</button>
+          <button className="btn-icon btn-sm" onClick={navigateForward} disabled={historyIndex >= history.length - 1}>&gt;</button>
+          <button className="btn-icon btn-sm" onClick={() => loadFiles(currentPath)} title="Refresh">↻</button>
+        </div>
+      <div 
+        className="browser-path" 
+        onClick={() => {
+          if (!isEditingPath && !isBlurringLocal.current) {
+            setIsEditingPath(true);
+          }
+        }}
+      >
+        {isEditingPath ? (
+          <input 
+            type="text" 
+            value={inputPath}
+            onChange={(e) => setInputPath(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handlePathSubmit()}
+            onBlur={handlePathSubmit}
+            className="path-input"
+            spellCheck={false}
+            autoFocus
+          />
+        ) : (
+          <>
+            <span onClick={(e) => { e.stopPropagation(); navigateTo('/'); }}>Root</span>
+            {pathParts.map((part, index) => (
+              <span key={index} onClick={(e) => { 
+                e.stopPropagation(); 
+                const parts = pathParts.slice(0, index + 1);
+                let newPath = parts.join('/');
+                if (/^[a-zA-Z]:/.test(newPath)) {
+                  newPath = parts.length === 1 ? `${newPath}/` : newPath;
+                } else {
+                  newPath = `/${newPath}`;
+                }
+                navigateTo(newPath); 
+              }}>
+                {part}
+              </span>
+            ))}
+          </>
+        )}
       </div>
-
-      <div className="browser-path">
-        <span onClick={() => navigateTo('/')}>Root</span>
-        {pathParts.map((part, index) => (
-          <span key={index} onClick={() => navigateTo('/' + pathParts.slice(0, index + 1).join('/'))}>
-            {part}
-          </span>
-        ))}
       </div>
 
       {loading ? (

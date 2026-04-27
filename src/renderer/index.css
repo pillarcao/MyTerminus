@@ -1202,12 +1202,24 @@ strong,
 }
 
 .panel-header {
-  padding: 10px 16px;
-  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.panel-nav button {
+  width: 24px;
+  height: 24px;
+  font-family: monospace;
+  font-weight: bold;
 }
 
 .panel-title {
@@ -1216,11 +1228,14 @@ strong,
 }
 
 .panel-path {
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 12px;
   display: flex;
-  gap: 0;
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
   overflow: hidden;
+  align-items: center;
 }
 
 .panel-path span {
@@ -1249,22 +1264,23 @@ strong,
   overflow: hidden;
 }
 
-.browser-toolbar {
-  padding: 6px 10px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+/* File browser specific overrides if needed */
+.file-browser {
+  flex: 1;
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .browser-path {
-  padding: 6px 10px;
-  background: var(--bg-tertiary);
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
-  gap: 0;
-  overflow-x: auto;
-  color: var(--text-muted);
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  overflow: hidden;
+  align-items: center;
 }
 
 .browser-path span {
@@ -1283,6 +1299,21 @@ strong,
 .browser-path span:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.path-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.path-input:focus {
+  background: var(--bg-hover);
 }
 
 .browser-list,

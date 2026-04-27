@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import { useAppStore } from '../stores/appStore';
 
 // Module-level cache to persist xterm instances by tabId
 const xtermCache: Map<string, XTerm> = new Map();
@@ -54,6 +55,7 @@ export default function Terminal({
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [connected, setConnected] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; selection: string } | null>(null);
+  const { glassOpacity } = useAppStore();
 
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -124,6 +126,7 @@ export default function Terminal({
         lineHeight: 1.2,
         theme: {
           ...TERMINAL_THEMES[validTheme],
+          background: TERMINAL_THEMES[validTheme].background.replace(/[\d.]+\)$/, `${glassOpacity})`),
         },
         allowTransparency: true,
         scrollback: 10000,
@@ -230,7 +233,16 @@ export default function Terminal({
         resizeObserverRef.current = null;
       }
     };
-  }, [tabId, tabId, validTheme]);
+  }, [tabId, validTheme]);
+
+  // Update terminal theme dynamically when slider or theme changes
+  useEffect(() => {
+    if (xtermRef.current) {
+      const themeParams = { ...TERMINAL_THEMES[validTheme] };
+      themeParams.background = themeParams.background.replace(/[\d.]+\)$/, `${glassOpacity})`);
+      xtermRef.current.options.theme = themeParams;
+    }
+  }, [validTheme, glassOpacity]);
 
   const initShell = async (xterm: XTerm) => {
     // Skip if shell already initialized for this connection
