@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { SFTPFile, LocalFile } from '@shared/types';
 import LocalBrowser from './LocalBrowser';
+import { formatSize, formatDate, getFileType } from '../utils';
 
 interface Props {
   connectionId: string;
@@ -24,6 +25,9 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
   const [isEditingRemotePath, setIsEditingRemotePath] = useState(false);
   const [remoteHistory, setRemoteHistory] = useState<string[]>([]);
   const [remoteHistoryIndex, setRemoteHistoryIndex] = useState(-1);
+  const [sortField, setSortField] = useState<'name' | 'modified' | null>('modified');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: SFTPFile | null } | null>(null);
 
   const currentPath = sftpPath[connectionId] || '/';
   const files = sftpFiles[connectionId] || [];
@@ -283,6 +287,39 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     }
   };
 
+  const handleSort = (field: 'name' | 'modified') => {
+    if (sortField === field) {
+      if (sortOrder === 'asc') setSortOrder('desc');
+      else {
+        setSortField(null);
+        setSortOrder('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const getSortedFiles = (filesToSort: SFTPFile[]) => {
+    const filtered = filesToSort.filter(file => showHidden || !file.name.startsWith('.'));
+    return filtered.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+
+      if (!sortField) return a.name.localeCompare(b.name);
+
+      const multiplier = sortOrder === 'asc' ? 1 : -1;
+      if (sortField === 'name') return a.name.localeCompare(b.name) * multiplier;
+      
+      const da = new Date(a.modified).getTime();
+      const db = new Date(b.modified).getTime();
+      if (isNaN(da) && isNaN(db)) return 0;
+      if (isNaN(da)) return 1 * multiplier;
+      if (isNaN(db)) return -1 * multiplier;
+      return (da - db) * multiplier;
+    });
+  };
+
   const pathParts = currentPath.split('/').filter(Boolean);
 
   return (
@@ -420,25 +457,40 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
           ) : error ? (
             <div className="panel-error">Error: {error}</div>
           ) : (
-            <div className="panel-list">
+            <div 
+              className="panel-list"
+              onContextMenu={(e) => {
+                if ((e.target as HTMLElement).closest('tr') && (e.target as HTMLElement).closest('tbody')) return;
+                e.preventDefault();
+                setContextMenu({ x: e.clientX, y: e.clientY, file: null });
+              }}
+            >
               <table>
                 <thead>
                   <tr>
-                    <th>Name</th>
+                    <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                      Name {sortField === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                    </th>
+                    <th onClick={() => handleSort('modified')} style={{ cursor: 'pointer' }}>
+                      Modified {sortField === 'modified' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                    </th>
                     <th>Size</th>
-                    <th>Modified</th>
-                    <th></th>
+                    <th>Type</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {files
-                    .filter(file => showHidden || !file.name.startsWith('.'))
-                    .map((file) => (
+                  {getSortedFiles(files).map((file) => (
                     <tr
                       key={file.name}
                       className={selectedRemoteFile?.name === file.name ? 'selected' : ''}
                       onClick={() => handleRemoteFileClick(file, false)}
                       onDoubleClick={() => handleRemoteFileClick(file, true)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({ x: e.clientX, y: e.clientY, file });
+                        setSelectedRemoteFile(file);
+                      }}
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/json', JSON.stringify({
@@ -454,20 +506,9 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
                           {file.name}
                         </span>
                       </td>
-                      <td className="file-size">{file.isDirectory ? '-' : formatSize(file.size)}</td>
-                      <td className="file-date">{file.modified ? new Date(file.modified).toLocaleDateString() : '-'}</td>
-                      <td>
-                        <button
-                          className="btn-icon btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(file);
-                          }}
-                          title="Delete"
-                        >
-                          🗑
-                        </button>
-                      </td>
+                      <td className="file-date">{formatDate(file.modified)}</td>
+                      <td className="file-size">{file.isDirectory ? '--' : formatSize(file.size)}</td>
+                      <td className="file-type">{getFileType(file.name, file.isDirectory)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -476,13 +517,54 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
           )}
         </div>
       </div>
+      
+      {contextMenu && (
+        <>
+          <div 
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            onClick={(e) => { e.stopPropagation(); setContextMenu(null); }}
+            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+          ></div>
+          <div 
+            className="context-menu" 
+            style={{ 
+              position: 'fixed', 
+              top: contextMenu.y, 
+              left: contextMenu.x, 
+              zIndex: 1000,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '4px',
+              boxShadow: 'var(--shadow-medium)',
+              backdropFilter: 'blur(20px)',
+              minWidth: '160px',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {contextMenu.file && (
+              <>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { alert('Open via remote is not supported yet.'); setContextMenu(null); }}>Open</button>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { 
+                  const newName = prompt('Enter new name for ' + contextMenu.file!.name + ':', contextMenu.file!.name);
+                  if (newName && newName !== contextMenu.file!.name) {
+                    const dirPath = currentPath === '/' ? '' : currentPath;
+                    window.electronAPI.sftpRename(connectionId, `${dirPath}/${contextMenu.file!.name}`, `${dirPath}/${newName}`)
+                      .then(() => loadFiles())
+                      .catch((err: any) => setError(err.toString()));
+                  }
+                  setContextMenu(null); 
+                }}>Rename</button>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px', color: '#ff453a' }} onClick={() => { handleDelete(contextMenu.file!); setContextMenu(null); }}>Delete</button>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { alert('Permission logic is not supported yet.'); setContextMenu(null); }}>Edit Permission</button>
+                <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }}></div>
+              </>
+            )}
+            <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { setShowNewFolder(true); setContextMenu(null); }}>New Folder</button>
+          </div>
+        </>
+      )}
     </div>
   );
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
 }

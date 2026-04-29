@@ -263,6 +263,15 @@ export default function Terminal({
         // Set up data listener for this tab's xterm
         setupDataListener(xterm);
 
+        // Fix Delete key (forward delete) emitting \x1b[3~ instead of sometimes being swallowed or mismapped
+        xterm.attachCustomKeyEventHandler((event) => {
+          if (event.code === 'Delete' && event.type === 'keydown') {
+            window.electronAPI.sshInput(tabId, '\x1b[3~');
+            return false; // Prevent default
+          }
+          return true;
+        });
+
         // Handle user input - send to SSH and keep cursor visible
         xterm.onData((data: string) => {
           window.electronAPI.sshInput(tabId, data);

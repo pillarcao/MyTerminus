@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { LocalFile } from '@shared/types';
+import { formatSize, formatDate, getFileType } from '../utils';
 
 interface Props {
   tabId?: string;
@@ -21,6 +22,8 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
   const isBlurringLocal = useRef(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [sortField, setSortField] = useState<'name' | 'modified' | null>('modified');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (localPath) {
@@ -135,6 +138,39 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
     onDragStart(file);
   };
 
+  const handleSort = (field: 'name' | 'modified') => {
+    if (sortField === field) {
+      if (sortOrder === 'asc') setSortOrder('desc');
+      else {
+        setSortField(null);
+        setSortOrder('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const getSortedFiles = (filesToSort: LocalFile[]) => {
+    const filtered = filesToSort.filter(file => showHidden || !file.name.startsWith('.'));
+    return filtered.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+
+      if (!sortField) return a.name.localeCompare(b.name);
+
+      const multiplier = sortOrder === 'asc' ? 1 : -1;
+      if (sortField === 'name') return a.name.localeCompare(b.name) * multiplier;
+
+      const da = new Date(a.modified).getTime();
+      const db = new Date(b.modified).getTime();
+      if (isNaN(da) && isNaN(db)) return 0;
+      if (isNaN(da)) return 1 * multiplier;
+      if (isNaN(db)) return -1 * multiplier;
+      return (da - db) * multiplier;
+    });
+  };
+
   const pathParts = currentPath.split(/[/\\]/).filter(Boolean);
 
   return (
@@ -146,46 +182,46 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
           <button className="btn-icon btn-sm" onClick={navigateForward} disabled={historyIndex >= history.length - 1}>&gt;</button>
           <button className="btn-icon btn-sm" onClick={() => loadFiles(currentPath)} title="Refresh">↻</button>
         </div>
-      <div 
-        className="browser-path" 
-        onClick={() => {
-          if (!isEditingPath && !isBlurringLocal.current) {
-            setIsEditingPath(true);
-          }
-        }}
-      >
-        {isEditingPath ? (
-          <input 
-            type="text" 
-            value={inputPath}
-            onChange={(e) => setInputPath(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handlePathSubmit()}
-            onBlur={handlePathSubmit}
-            className="path-input"
-            spellCheck={false}
-            autoFocus
-          />
-        ) : (
-          <>
-            <span onClick={(e) => { e.stopPropagation(); navigateTo('/'); }}>Root</span>
-            {pathParts.map((part, index) => (
-              <span key={index} onClick={(e) => { 
-                e.stopPropagation(); 
-                const parts = pathParts.slice(0, index + 1);
-                let newPath = parts.join('/');
-                if (/^[a-zA-Z]:/.test(newPath)) {
-                  newPath = parts.length === 1 ? `${newPath}/` : newPath;
-                } else {
-                  newPath = `/${newPath}`;
-                }
-                navigateTo(newPath); 
-              }}>
-                {part}
-              </span>
-            ))}
-          </>
-        )}
-      </div>
+        <div
+          className="browser-path"
+          onClick={() => {
+            if (!isEditingPath && !isBlurringLocal.current) {
+              setIsEditingPath(true);
+            }
+          }}
+        >
+          {isEditingPath ? (
+            <input
+              type="text"
+              value={inputPath}
+              onChange={(e) => setInputPath(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePathSubmit()}
+              onBlur={handlePathSubmit}
+              className="path-input"
+              spellCheck={false}
+              autoFocus
+            />
+          ) : (
+            <>
+              <span onClick={(e) => { e.stopPropagation(); navigateTo('/'); }}>Root</span>
+              {pathParts.map((part, index) => (
+                <span key={index} onClick={(e) => {
+                  e.stopPropagation();
+                  const parts = pathParts.slice(0, index + 1);
+                  let newPath = parts.join('/');
+                  if (/^[a-zA-Z]:/.test(newPath)) {
+                    newPath = parts.length === 1 ? `${newPath}/` : newPath;
+                  } else {
+                    newPath = `/${newPath}`;
+                  }
+                  navigateTo(newPath);
+                }}>
+                  {part}
+                </span>
+              ))}
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -197,15 +233,18 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
           <table>
             <thead>
               <tr>
-                <th>Name</th>
+                <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                  Name {sortField === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => handleSort('modified')} style={{ cursor: 'pointer' }}>
+                  Modified {sortField === 'modified' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
                 <th>Size</th>
-                <th>Modified</th>
+                <th>Type</th>
               </tr>
             </thead>
             <tbody>
-              {files
-                .filter((file) => showHidden || !file.name.startsWith('.'))
-                .map((file) => (
+              {getSortedFiles(files).map((file) => (
                 <tr
                   key={file.path}
                   className={selectedFile === file.path ? 'selected' : ''}
@@ -219,8 +258,9 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
                       {file.name}
                     </span>
                   </td>
-                  <td className="file-size">{file.isDirectory ? '-' : formatSize(file.size)}</td>
-                  <td className="file-date">{file.modified ? new Date(file.modified).toLocaleDateString() : '-'}</td>
+                  <td className="file-date">{formatDate(file.modified)}</td>
+                  <td className="file-size">{file.isDirectory ? '--' : formatSize(file.size)}</td>
+                  <td className="file-type">{getFileType(file.name, file.isDirectory)}</td>
                 </tr>
               ))}
             </tbody>
@@ -229,11 +269,4 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
       )}
     </div>
   );
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
 }
