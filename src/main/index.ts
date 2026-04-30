@@ -587,6 +587,20 @@ ipcMain.handle('sftp:rename', async (_event, connectionId: string, oldPath: stri
   });
 });
 
+ipcMain.handle('sftp:chmod', async (_event, connectionId: string, remotePath: string, mode: number) => {
+  const sftp = sftpClients.get(connectionId);
+  if (!sftp) {
+    throw new Error('SFTP not connected');
+  }
+
+  return new Promise((resolve, reject) => {
+    sftp.chmod(remotePath, mode, (err) => {
+      if (err) reject(err.message);
+      else resolve({ success: true });
+    });
+  });
+});
+
 ipcMain.handle('sftp:upload', async (_event, tabId: string, connectionId: string, localPath: string, remotePath: string) => {
   const sftp: any = sftpClients.get(connectionId);
   if (!sftp) {

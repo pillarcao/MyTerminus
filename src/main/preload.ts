@@ -45,6 +45,8 @@ const api = {
     ipcRenderer.invoke('sftp:delete', connectionId, remotePath),
   sftpRename: (connectionId: string, oldPath: string, newPath: string) =>
     ipcRenderer.invoke('sftp:rename', connectionId, oldPath, newPath),
+  sftpChmod: (connectionId: string, remotePath: string, mode: number) =>
+    ipcRenderer.invoke('sftp:chmod', connectionId, remotePath, mode),
   sftpUpload: (tabId: string, connectionId: string, localPath: string, remotePath: string) =>
     ipcRenderer.invoke('sftp:upload', tabId, connectionId, localPath, remotePath),
   sftpDownload: (tabId: string, connectionId: string, remotePath: string, localPath: string) =>

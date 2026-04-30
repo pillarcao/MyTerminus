@@ -14,7 +14,7 @@ export interface Connection {
   password?: string;
   privateKeyPath?: string;
   groupId?: string;
-  terminalTheme?: 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue' | 'nord' | 'dracula' | 'solarized' | 'synthwave' | 'one-dark';
+  terminalTheme?: 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue' | 'nord' | 'dracula' | 'solarized' | 'synthwave' | 'one-dark' | 'catppuccin' | 'tokyo-night' | 'github-dark' | 'gruvbox';
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useReducer, useCallback } from 'react';
 import { LocalFile } from '@shared/types';
 import { formatSize, formatDate, getFileType } from '../utils';
 
@@ -12,15 +12,34 @@ interface Props {
   showHidden?: boolean;
 }
 
+// Batched state to avoid multiple re-renders on each load
+interface FileState {
+  files: LocalFile[];
+  loading: boolean;
+  error: string | null;
+}
+
+type FileAction =
+  | { type: 'LOAD_START' }
+  | { type: 'LOAD_SUCCESS'; files: LocalFile[] }
+  | { type: 'LOAD_ERROR'; error: string };
+
+function fileReducer(state: FileState, action: FileAction): FileState {
+  switch (action.type) {
+    case 'LOAD_START': return { files: state.files, loading: true, error: null };
+    case 'LOAD_SUCCESS': return { files: action.files, loading: false, error: null };
+    case 'LOAD_ERROR': return { files: state.files, loading: false, error: action.error };
+  }
+}
+
 export default function LocalBrowser({ localPath, onPathChange, onFileSelect, onDragStart, selectedFile, showHidden = false }: Props) {
   const [currentPath, setCurrentPath] = useState<string>(localPath || '');
   const [inputPath, setInputPath] = useState<string>(localPath || '');
   const [isEditingPath, setIsEditingPath] = useState(false);
-  const [files, setFiles] = useState<LocalFile[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [{ files, loading, error }, dispatch] = useReducer(fileReducer, { files: [], loading: false, error: null });
   const isBlurringLocal = useRef(false);
   const [history, setHistory] = useState<string[]>([]);
+  const historyIndexRef = useRef(-1);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [sortField, setSortField] = useState<'name' | 'modified' | null>('modified');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -29,6 +48,7 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
     if (localPath) {
       setCurrentPath(localPath);
       setHistory([localPath]);
+      historyIndexRef.current = 0;
       setHistoryIndex(0);
       loadFiles(localPath);
     } else {
@@ -36,16 +56,17 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
     }
   }, []);
 
-  // Watch for external path changes
+  // Watch for external path changes — use ref for historyIndex to avoid stale closure
   useEffect(() => {
     if (localPath && localPath !== currentPath) {
       setCurrentPath(localPath);
       setHistory(prev => {
-        const newHistory = prev.slice(0, historyIndex + 1);
+        const newHistory = prev.slice(0, historyIndexRef.current + 1);
         newHistory.push(localPath);
+        historyIndexRef.current = newHistory.length - 1;
         return newHistory;
       });
-      setHistoryIndex(prev => prev + 1);
+      setHistoryIndex(historyIndexRef.current);
       loadFiles(localPath);
     }
   }, [localPath]);
@@ -56,6 +77,7 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
       setCurrentPath(home);
       onPathChange?.(home);
       setHistory([home]);
+      historyIndexRef.current = 0;
       setHistoryIndex(0);
       await loadFiles(home);
     } catch (err) {
@@ -64,31 +86,29 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
   };
 
   const loadFiles = async (dirPath: string) => {
-    setLoading(true);
-    setError(null);
+    dispatch({ type: 'LOAD_START' });
     try {
       const list = await window.electronAPI.listLocalDir(dirPath);
-      setFiles(list);
+      dispatch({ type: 'LOAD_SUCCESS', files: list });
     } catch (err: any) {
-      setError(err.toString());
-    } finally {
-      setLoading(false);
+      dispatch({ type: 'LOAD_ERROR', error: err.toString() });
     }
   };
 
-  const navigateTo = (dirPath: string, pushHistory = true) => {
+  const navigateTo = useCallback((dirPath: string, pushHistory = true) => {
     setCurrentPath(dirPath);
     onPathChange?.(dirPath);
     loadFiles(dirPath);
     if (pushHistory) {
       setHistory(prev => {
-        const newHistory = prev.slice(0, historyIndex + 1);
+        const newHistory = prev.slice(0, historyIndexRef.current + 1);
         newHistory.push(dirPath);
+        historyIndexRef.current = newHistory.length - 1;
         return newHistory;
       });
-      setHistoryIndex(prev => prev + 1);
+      setHistoryIndex(historyIndexRef.current);
     }
-  };
+  }, [onPathChange]);
 
   useEffect(() => {
     setInputPath(currentPath);
@@ -105,73 +125,78 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
     }, 200);
   };
 
-  const navigateBack = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
+  const navigateBack = useCallback(() => {
+    if (historyIndexRef.current > 0) {
+      const newIndex = historyIndexRef.current - 1;
+      historyIndexRef.current = newIndex;
       setHistoryIndex(newIndex);
-      navigateTo(history[newIndex], false);
+      setHistory(prev => {
+        navigateTo(prev[newIndex], false);
+        return prev;
+      });
     }
-  };
+  }, [navigateTo]);
 
-  const navigateForward = () => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      navigateTo(history[newIndex], false);
-    }
-  };
+  const navigateForward = useCallback(() => {
+    setHistory(prev => {
+      if (historyIndexRef.current < prev.length - 1) {
+        const newIndex = historyIndexRef.current + 1;
+        historyIndexRef.current = newIndex;
+        setHistoryIndex(newIndex);
+        navigateTo(prev[newIndex], false);
+      }
+      return prev;
+    });
+  }, [navigateTo]);
 
-  const handleFileClick = (file: LocalFile) => {
+  const handleFileClick = useCallback((file: LocalFile) => {
     if (file.isDirectory) {
       navigateTo(file.path);
     } else {
       onFileSelect(file);
     }
-  };
+  }, [navigateTo, onFileSelect]);
 
-  const handleDragStart = (e: React.DragEvent, file: LocalFile) => {
-    e.dataTransfer.setData('application/json', JSON.stringify({
-      type: 'local',
-      file
-    }));
+  const handleDragStart = useCallback((e: React.DragEvent, file: LocalFile) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'local', file }));
     e.dataTransfer.effectAllowed = 'copy';
     onDragStart(file);
-  };
+  }, [onDragStart]);
 
-  const handleSort = (field: 'name' | 'modified') => {
-    if (sortField === field) {
-      if (sortOrder === 'asc') setSortOrder('desc');
-      else {
-        setSortField(null);
-        setSortOrder('asc');
+  const handleSort = useCallback((field: 'name' | 'modified') => {
+    setSortField(prev => {
+      if (prev === field) {
+        setSortOrder(o => {
+          if (o === 'asc') return 'desc';
+          setSortField(null);
+          return 'asc';
+        });
+        return field;
       }
-    } else {
-      setSortField(field);
       setSortOrder('asc');
-    }
-  };
+      return field;
+    });
+  }, []);
 
-  const getSortedFiles = (filesToSort: LocalFile[]) => {
-    const filtered = filesToSort.filter(file => showHidden || !file.name.startsWith('.'));
-    return filtered.sort((a, b) => {
+  // 🚀 useMemo: only re-sort when files/sort/showHidden actually change
+  const sortedFiles = useMemo(() => {
+    const filtered = files.filter(file => showHidden || !file.name.startsWith('.'));
+    return [...filtered].sort((a, b) => {
       if (a.isDirectory && !b.isDirectory) return -1;
       if (!a.isDirectory && b.isDirectory) return 1;
-
       if (!sortField) return a.name.localeCompare(b.name);
-
       const multiplier = sortOrder === 'asc' ? 1 : -1;
       if (sortField === 'name') return a.name.localeCompare(b.name) * multiplier;
-
       const da = new Date(a.modified).getTime();
       const db = new Date(b.modified).getTime();
       if (isNaN(da) && isNaN(db)) return 0;
-      if (isNaN(da)) return 1 * multiplier;
-      if (isNaN(db)) return -1 * multiplier;
+      if (isNaN(da)) return multiplier;
+      if (isNaN(db)) return -multiplier;
       return (da - db) * multiplier;
     });
-  };
+  }, [files, sortField, sortOrder, showHidden]);
 
-  const pathParts = currentPath.split(/[/\\]/).filter(Boolean);
+  const pathParts = useMemo(() => currentPath.split(/[/\\]/).filter(Boolean), [currentPath]);
 
   return (
     <div className="file-browser">
@@ -244,7 +269,7 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
               </tr>
             </thead>
             <tbody>
-              {getSortedFiles(files).map((file) => (
+              {sortedFiles.map((file) => (
                 <tr
                   key={file.path}
                   className={selectedFile === file.path ? 'selected' : ''}

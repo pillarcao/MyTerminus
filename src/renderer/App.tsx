@@ -301,29 +301,29 @@ export default function App() {
         </div>
         {/* Non-host tabs - always rendered, toggled via visibility */}
         <div className="full-tab-content" style={{ position: 'relative', display: activeTab?.type !== 'host' ? 'flex' : 'none' }}>
-          {tabs.filter(t => t.type !== 'host').map(tab => (
-            <div
-              key={tab.id}
-              className="tab-panel"
-              style={{
-                visibility: tab.id === activeTabId ? 'visible' : 'hidden',
-                position: 'absolute',
-                inset: 0
-              }}
-            >
-              {tab.type === 'terminal' ? (
-                <Terminal
-                  connectionId={tab.connectionId}
-                  tabId={tab.id}
-                  terminalTheme={connections.find(c => c.id === tab.connectionId)?.terminalTheme || 'default'}
-                  cursorStyle={connections.find(c => c.id === tab.connectionId)?.cursorStyle || 'block'}
-                  cursorBlink={connections.find(c => c.id === tab.connectionId)?.cursorBlink !== false}
-                />
-              ) : (
-                <SFTPBrowser connectionId={tab.connectionId} tabId={tab.id} />
-              )}
-            </div>
-          ))}
+          {tabs.filter(t => t.type !== 'host').map(tab => {
+            const isActive = tab.id === activeTabId;
+            // Terminals use visibility:hidden (not display:none) so xterm stays mounted
+            // SFTP/other panels use display:none to fully remove from paint tree → no flash
+            const panelStyle: React.CSSProperties = tab.type === 'terminal'
+              ? { visibility: isActive ? 'visible' : 'hidden', position: 'absolute', inset: 0 }
+              : { display: isActive ? 'flex' : 'none', position: 'absolute', inset: 0, flexDirection: 'column' };
+            return (
+              <div key={tab.id} className="tab-panel" style={panelStyle}>
+                {tab.type === 'terminal' ? (
+                  <Terminal
+                    connectionId={tab.connectionId}
+                    tabId={tab.id}
+                    terminalTheme={connections.find(c => c.id === tab.connectionId)?.terminalTheme || 'default'}
+                    cursorStyle={connections.find(c => c.id === tab.connectionId)?.cursorStyle || 'block'}
+                    cursorBlink={connections.find(c => c.id === tab.connectionId)?.cursorBlink !== false}
+                  />
+                ) : (
+                  <SFTPBrowser connectionId={tab.connectionId} tabId={tab.id} />
+                )}
+              </div>
+            );
+          })}
         </div>
         {error && (
           <div className="error-banner">

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { SFTPFile, LocalFile } from '@shared/types';
 import LocalBrowser from './LocalBrowser';
@@ -10,7 +10,13 @@ interface Props {
 }
 
 export default function SFTPBrowser({ connectionId, tabId }: Props) {
-  const { sftpPath, sftpFiles, localPath, setSftpPath, setSftpFiles, setLocalPath } = useAppStore();
+  // 🚀 Fine-grained selectors — only re-render when THIS connection's data changes
+  const currentPath = useAppStore(s => s.sftpPath[connectionId] || '/');
+  const files = useAppStore(s => s.sftpFiles[connectionId] || []);
+  const localPath = useAppStore(s => s.localPath);
+  const setSftpPath = useAppStore(s => s.setSftpPath);
+  const setSftpFiles = useAppStore(s => s.setSftpFiles);
+  const setLocalPath = useAppStore(s => s.setLocalPath);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedLocalFile, setSelectedLocalFile] = useState<LocalFile | null>(null);
@@ -28,9 +34,12 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
   const [sortField, setSortField] = useState<'name' | 'modified' | null>('modified');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: SFTPFile | null } | null>(null);
+  const [renameModal, setRenameModal] = useState<{ file: SFTPFile } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteModal, setDeleteModal] = useState<{ file: SFTPFile } | null>(null);
+  const [chmodModal, setChmodModal] = useState<{ file: SFTPFile } | null>(null);
+  const [chmodValue, setChmodValue] = useState('644');
 
-  const currentPath = sftpPath[connectionId] || '/';
-  const files = sftpFiles[connectionId] || [];
   const initialized = useRef(false);
   const isBlurring = useRef(false);
 
@@ -53,7 +62,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
 
   // Watch for path changes to reload files
   useEffect(() => {
-    if (initialized.current && sftpPath[connectionId]) {
+    if (initialized.current && currentPath) {
       loadFiles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,7 +123,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     }
   };
 
-  const navigateTo = (path: string, pushHistory = true) => {
+  const navigateTo = useCallback((path: string, pushHistory = true) => {
     setSftpPath(connectionId, path);
     if (pushHistory) {
       setRemoteHistory(prev => {
@@ -124,7 +133,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       });
       setRemoteHistoryIndex(prev => prev + 1);
     }
-  };
+  }, [connectionId, setSftpPath, remoteHistoryIndex]);
 
   const navigateRemoteBack = () => {
     if (remoteHistoryIndex > 0) {
@@ -269,6 +278,45 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     }
   };
 
+  const handleRename = async () => {
+    if (!renameModal) return;
+    const oldName = renameModal.file.name;
+    if (!renameValue || renameValue === oldName) { setRenameModal(null); return; }
+    const dirPath = currentPath === '/' ? '' : currentPath;
+    try {
+      await window.electronAPI.sftpRename(connectionId, `${dirPath}/${oldName}`, `${dirPath}/${renameValue}`);
+      loadFiles();
+    } catch (err: any) { setError(err.toString()); }
+    setRenameModal(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal) return;
+    const file = deleteModal.file;
+    const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
+    try {
+      if (file.isDirectory) {
+        await window.electronAPI.sftpRmdir(connectionId, remotePath);
+      } else {
+        await window.electronAPI.sftpDelete(connectionId, remotePath);
+      }
+      loadFiles();
+    } catch (err: any) { setError(err.toString()); }
+    setDeleteModal(null);
+  };
+
+  const handleChmod = async () => {
+    if (!chmodModal) return;
+    const modeInt = parseInt(chmodValue, 8);
+    if (isNaN(modeInt)) { setError('Invalid permission format. Use octal like 755.'); return; }
+    const remotePath = currentPath === '/' ? `/${chmodModal.file.name}` : `${currentPath}/${chmodModal.file.name}`;
+    try {
+      await window.electronAPI.sftpChmod(connectionId, remotePath, modeInt);
+      loadFiles();
+    } catch (err: any) { setError(err.toString()); }
+    setChmodModal(null);
+  };
+
   const handleDelete = async (file: SFTPFile) => {
     const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
     const confirmMsg = file.isDirectory ? `Delete folder "${file.name}"?` : `Delete file "${file.name}"?`;
@@ -300,9 +348,10 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     }
   };
 
-  const getSortedFiles = (filesToSort: SFTPFile[]) => {
-    const filtered = filesToSort.filter(file => showHidden || !file.name.startsWith('.'));
-    return filtered.sort((a, b) => {
+  // 🚀 useMemo: only re-sort when files/sort/showHidden change
+  const sortedFiles = useMemo(() => {
+    const filtered = files.filter(file => showHidden || !file.name.startsWith('.'));
+    return [...filtered].sort((a, b) => {
       if (a.isDirectory && !b.isDirectory) return -1;
       if (!a.isDirectory && b.isDirectory) return 1;
 
@@ -318,7 +367,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       if (isNaN(db)) return -1 * multiplier;
       return (da - db) * multiplier;
     });
-  };
+  }, [files, sortField, sortOrder, showHidden]);
 
   const pathParts = currentPath.split('/').filter(Boolean);
 
@@ -479,7 +528,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {getSortedFiles(files).map((file) => (
+                  {sortedFiles.map((file) => (
                     <tr
                       key={file.name}
                       className={selectedRemoteFile?.name === file.name ? 'selected' : ''}
@@ -546,24 +595,99 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
             {contextMenu.file && (
               <>
                 <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { alert('Open via remote is not supported yet.'); setContextMenu(null); }}>Open</button>
-                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { 
-                  const newName = prompt('Enter new name for ' + contextMenu.file!.name + ':', contextMenu.file!.name);
-                  if (newName && newName !== contextMenu.file!.name) {
-                    const dirPath = currentPath === '/' ? '' : currentPath;
-                    window.electronAPI.sftpRename(connectionId, `${dirPath}/${contextMenu.file!.name}`, `${dirPath}/${newName}`)
-                      .then(() => loadFiles())
-                      .catch((err: any) => setError(err.toString()));
-                  }
-                  setContextMenu(null); 
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => {
+                  setRenameValue(contextMenu.file!.name);
+                  setRenameModal({ file: contextMenu.file! });
+                  setContextMenu(null);
                 }}>Rename</button>
-                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px', color: '#ff453a' }} onClick={() => { handleDelete(contextMenu.file!); setContextMenu(null); }}>Delete</button>
-                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { alert('Permission logic is not supported yet.'); setContextMenu(null); }}>Edit Permission</button>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px', color: '#ff453a' }} onClick={() => {
+                  setDeleteModal({ file: contextMenu.file! });
+                  setContextMenu(null);
+                }}>Delete</button>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => {
+                  setChmodValue('644');
+                  setChmodModal({ file: contextMenu.file! });
+                  setContextMenu(null);
+                }}>Edit Permission</button>
                 <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }}></div>
               </>
             )}
             <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: '13px' }} onClick={() => { setShowNewFolder(true); setContextMenu(null); }}>New Folder</button>
           </div>
         </>
+      )}
+
+      {/* Rename Modal */}
+      {renameModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', minWidth: '320px', backdropFilter: 'blur(30px)', boxShadow: 'var(--shadow-large)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600 }}>Rename</h3>
+            <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--text-secondary)' }}>{renameModal.file.name}</p>
+            <input
+              type="text"
+              className="path-input"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+              autoFocus
+              style={{ width: '100%', marginBottom: '16px', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRenameModal(null)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={handleRename}>Rename</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', minWidth: '320px', backdropFilter: 'blur(30px)', boxShadow: 'var(--shadow-large)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600 }}>Confirm Delete</h3>
+            <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Delete {deleteModal.file.isDirectory ? 'folder' : 'file'} <strong>"{deleteModal.file.name}"</strong>? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setDeleteModal(null)}>Cancel</button>
+              <button className="btn btn-sm" style={{ background: '#ff453a', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer' }} onClick={handleDeleteConfirm}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Permission Modal */}
+      {chmodModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', minWidth: '340px', backdropFilter: 'blur(30px)', boxShadow: 'var(--shadow-large)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 600 }}>Edit Permission</h3>
+            <p style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--text-secondary)' }}>{chmodModal.file.name}</p>
+            <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+              Octal Permission (e.g. 755, 644, 777)
+            </label>
+            <input
+              type="text"
+              className="path-input"
+              value={chmodValue}
+              onChange={(e) => setChmodValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleChmod()}
+              placeholder="644"
+              autoFocus
+              style={{ width: '100%', marginBottom: '8px', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px', marginBottom: '16px' }}>
+              {[['755', 'rwxr-xr-x'], ['644', 'rw-r--r--'], ['777', 'rwxrwxrwx'], ['600', 'rw-------'], ['755', 'Dir std'], ['444', 'r--r--r--']].map(([val, label]) => (
+                <button key={val+label} className="btn btn-ghost" style={{ fontSize: '11px', padding: '4px 6px' }} onClick={() => setChmodValue(val)}>
+                  {val} <span style={{ color: 'var(--text-tertiary)' }}>{label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setChmodModal(null)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={handleChmod}>Apply</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
