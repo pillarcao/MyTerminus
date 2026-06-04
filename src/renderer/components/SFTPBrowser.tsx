@@ -19,13 +19,23 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
   const setLocalPath = useAppStore(s => s.setLocalPath);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLocalFile, setSelectedLocalFile] = useState<LocalFile | null>(null);
-  const [selectedRemoteFile, setSelectedRemoteFile] = useState<SFTPFile | null>(null);
+  const [selectedLocalFiles, setSelectedLocalFiles] = useState<LocalFile[]>([]);
+  const [selectedRemoteFiles, setSelectedRemoteFiles] = useState<SFTPFile[]>([]);
+  const [lastClickedRemote, setLastClickedRemote] = useState<string | null>(null);
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [transferStatus, setTransferStatus] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Transfer queue: each entry tracks one file's progress
+  interface TransferJob {
+    id: string;
+    name: string;
+    type: 'upload' | 'download';
+    progress: number; // 0-100
+    done: boolean;
+    error?: string;
+  }
+  const [transferJobs, setTransferJobs] = useState<TransferJob[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [remoteInputPath, setRemoteInputPath] = useState('');
   const [isEditingRemotePath, setIsEditingRemotePath] = useState(false);
@@ -48,10 +58,13 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       initialized.current = true;
       initHomePath();
     }
-    // Listen for SFTP progress
+    // Listen for SFTP progress per-file (keyed by filename suffix in the event)
     const removeProgressListener = window.electronAPI.onSftpProgress(tabId, (data) => {
-      setProgress({ current: data.transferred, total: data.total });
-      setTransferStatus(`${data.type === 'upload' ? 'Uploading' : 'Downloading'}: ${data.progress}%`);
+      setTransferJobs(prev => prev.map(j => {
+        if (j.done) return j;
+        // Update the first non-done job (jobs run sequentially)
+        return { ...j, progress: data.progress };
+      }));
     });
 
     return () => {
@@ -168,60 +181,96 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
 
 
 
-  const handleRemoteFileClick = (file: SFTPFile, isDoubleClick: boolean = false) => {
+  const handleRemoteFileClick = (file: SFTPFile, e: React.MouseEvent, isDoubleClick: boolean = false) => {
     if (file.isDirectory && isDoubleClick) {
-      // Normalize path to prevent duplicate slashes
       const basePath = currentPath === '/' ? '' : currentPath;
       const newPath = `${basePath}/${file.name}`.replace(/\/+/g, '/');
       navigateTo(newPath);
-      setSelectedRemoteFile(null);
-    } else if (!file.isDirectory) {
-      setSelectedRemoteFile(file);
+      setSelectedRemoteFiles([]);
+      setLastClickedRemote(null);
+    } else {
+      if (e.metaKey || e.ctrlKey) {
+        // Toggle selection
+        setSelectedRemoteFiles(prev =>
+          prev.some(f => f.name === file.name)
+            ? prev.filter(f => f.name !== file.name)
+            : [...prev, file]
+        );
+        setLastClickedRemote(file.name);
+      } else if (e.shiftKey && lastClickedRemote) {
+        // Range selection
+        const sorted = sortedFiles;
+        const lastIdx = sorted.findIndex(f => f.name === lastClickedRemote);
+        const currIdx = sorted.findIndex(f => f.name === file.name);
+        const start = Math.min(lastIdx, currIdx);
+        const end = Math.max(lastIdx, currIdx);
+        const range = sorted.slice(start, end + 1);
+        
+        setSelectedRemoteFiles(prev => {
+          const newSelection = new Map(prev.map(f => [f.name, f]));
+          range.forEach(f => newSelection.set(f.name, f));
+          return Array.from(newSelection.values());
+        });
+      } else {
+        // Single selection
+        setSelectedRemoteFiles([file]);
+        setLastClickedRemote(file.name);
+      }
     }
   };
 
   // Upload: from local to remote
-  const handleUpload = async (localFile?: LocalFile) => {
-    const fileToUpload = localFile || selectedLocalFile;
-    if (!fileToUpload) return;
+  const handleUpload = useCallback(async (localFilesOverride?: LocalFile[]) => {
+    const filesToUpload = localFilesOverride?.length ? localFilesOverride : selectedLocalFiles;
+    if (!filesToUpload.length) return;
 
-    setProgress(null);
-    setTransferStatus(`Uploading ${fileToUpload.name}...`);
-    try {
-      const remotePath = currentPath === '/' ? `/${fileToUpload.name}` : `${currentPath}/${fileToUpload.name}`;
-      await window.electronAPI.sftpUpload(tabId, connectionId, fileToUpload.path, remotePath);
-      await loadFiles();
-      setTransferStatus(null);
-      setProgress(null);
-    } catch (err: any) {
-      setTransferStatus(null);
-      setProgress(null);
-      setError(err.toString());
+    for (const file of filesToUpload) {
+      const jobId = `up-${Date.now()}-${file.name}`;
+      setTransferJobs(prev => [...prev, { id: jobId, name: file.name, type: 'upload', progress: 0, done: false }]);
+      
+      try {
+        const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
+        await window.electronAPI.sftpUpload(tabId, connectionId, file.path, remotePath);
+        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: 100, done: true } : j));
+      } catch (err: any) {
+        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, error: err.toString(), done: true } : j));
+      }
     }
-  };
+    
+    await loadFiles();
+    
+    // Clear completed jobs after a short delay
+    setTimeout(() => {
+      setTransferJobs(prev => prev.filter(j => !j.done || !!j.error));
+    }, 3000);
+  }, [selectedLocalFiles, currentPath, tabId, connectionId]);
 
   // Download: from remote to local
-  const handleDownload = async (remoteFile?: SFTPFile) => {
-    const fileToDownload = remoteFile || selectedRemoteFile;
-    if (!fileToDownload) return;
+  const handleDownload = useCallback(async (remoteFilesOverride?: SFTPFile[]) => {
+    const filesToDownload = remoteFilesOverride?.length ? remoteFilesOverride : selectedRemoteFiles;
+    if (!filesToDownload.length) return;
 
-    const remotePath = currentPath === '/' ? `/${fileToDownload.name}` : `${currentPath}/${fileToDownload.name}`;
-    // Use local browser's current path as download destination
     const currentLocalPath = localPath[tabId] || '/';
-    const localFilePath = currentLocalPath === '/' ? `/${fileToDownload.name}` : `${currentLocalPath}/${fileToDownload.name}`;
 
-    setProgress(null);
-    setTransferStatus(`Downloading ${fileToDownload.name}...`);
-    try {
-      await window.electronAPI.sftpDownload(tabId, connectionId, remotePath, localFilePath);
-      setTransferStatus(null);
-      setProgress(null);
-    } catch (err: any) {
-      setTransferStatus(null);
-      setProgress(null);
-      setError(err.toString());
+    for (const file of filesToDownload) {
+      const jobId = `dn-${Date.now()}-${file.name}`;
+      setTransferJobs(prev => [...prev, { id: jobId, name: file.name, type: 'download', progress: 0, done: false }]);
+      
+      try {
+        const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
+        const localFilePath = currentLocalPath === '/' ? `/${file.name}` : `${currentLocalPath}/${file.name}`;
+        await window.electronAPI.sftpDownload(tabId, connectionId, remotePath, localFilePath);
+        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: 100, done: true } : j));
+      } catch (err: any) {
+         setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, error: err.toString(), done: true } : j));
+      }
     }
-  };
+    
+    // Clear completed jobs after a short delay
+    setTimeout(() => {
+      setTransferJobs(prev => prev.filter(j => !j.done || !!j.error));
+    }, 3000);
+  }, [selectedRemoteFiles, currentPath, localPath, tabId, connectionId]);
 
   // Drag and drop: local file dropped on remote panel -> upload
   const handleRemoteDrop = useCallback(async (e: React.DragEvent) => {
@@ -232,9 +281,10 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     if (!data) return;
 
     try {
-      const { type, file } = JSON.parse(data);
+      const { type, file, files } = JSON.parse(data);
       if (type === 'local') {
-        await handleUpload(file as LocalFile);
+        const filesToUpload = files || [file]; // Support single file or array
+        await handleUpload(filesToUpload);
       }
     } catch (err) {
       console.error('Drop error:', err);
@@ -246,12 +296,10 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     e.preventDefault();
     setIsDragging(false);
 
-    // For remote to local, we need to store the selected file info
-    // Since we're using dual pane, we can use the selectedRemoteFile
-    if (selectedRemoteFile) {
-      await handleDownload(selectedRemoteFile);
+    if (selectedRemoteFiles.length > 0) {
+      await handleDownload(selectedRemoteFiles);
     }
-  }, [selectedRemoteFile, connectionId, currentPath]);
+  }, [selectedRemoteFiles, handleDownload]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -378,10 +426,10 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
         <button className="btn btn-sm btn-secondary" onClick={loadFiles}>
           ↻
         </button>
-        <button className="btn btn-sm btn-secondary" onClick={() => handleUpload()} disabled={!selectedLocalFile}>
+        <button className="btn btn-sm btn-secondary" onClick={() => handleUpload()} disabled={selectedLocalFiles.length === 0}>
           ↑ Upload
         </button>
-        <button className="btn btn-sm btn-secondary" onClick={() => handleDownload()} disabled={!selectedRemoteFile}>
+        <button className="btn btn-sm btn-secondary" onClick={() => handleDownload()} disabled={selectedRemoteFiles.length === 0}>
           ↓ Download
         </button>
         <button className="btn btn-sm btn-secondary" onClick={() => setShowNewFolder(true)}>
@@ -394,14 +442,22 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
         >
           {showHidden ? '👁' : '👁‍🗨'}
         </button>
-        <span className="transfer-status">
-          {transferStatus}
-          {progress && (
-            <span className="progress-bar">
-              {Math.round((progress.current / progress.total) * 100)}%
-            </span>
-          )}
-        </span>
+        <div className="transfer-queue">
+          {transferJobs.map(job => (
+            <div key={job.id} className={`transfer-job ${job.error ? 'error' : ''} ${job.done ? 'done' : ''}`}>
+              <div className="job-info">
+                <span className="job-icon">{job.type === 'upload' ? '↑' : '↓'}</span>
+                <span className="job-name">{job.name}</span>
+                <span className="job-pct">{job.error ? 'Error' : `${job.progress}%`}</span>
+              </div>
+              {!job.error && !job.done && (
+                <div className="job-bar-bg">
+                  <div className="job-bar" style={{ width: `${job.progress}%` }} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Dual panels */}
@@ -416,9 +472,19 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
           <LocalBrowser
             tabId={tabId}
             localPath={localPath[tabId]}
-            onFileSelect={(file) => setSelectedLocalFile(file)}
-            onDragStart={(file) => setSelectedLocalFile(file)}
-            selectedFile={selectedLocalFile?.path || null}
+            onFileSelect={(file, e) => {
+              if (e?.metaKey || e?.ctrlKey) {
+                setSelectedLocalFiles(prev => 
+                  prev.some(f => f.name === file.name) ? prev.filter(f => f.name !== file.name) : [...prev, file]
+                );
+              } else {
+                setSelectedLocalFiles([file])
+              }
+            }}
+            onDragStart={(file) => {
+              if (!selectedLocalFiles.some(f => f.name === file.name)) setSelectedLocalFiles([file]);
+            }}
+            selectedFiles={selectedLocalFiles.map(f => f.path)}
             onPathChange={(path) => setLocalPath(tabId, path)}
             showHidden={showHidden}
           />
@@ -531,23 +597,35 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
                   {sortedFiles.map((file) => (
                     <tr
                       key={file.name}
-                      className={selectedRemoteFile?.name === file.name ? 'selected' : ''}
-                      onClick={() => handleRemoteFileClick(file, false)}
-                      onDoubleClick={() => handleRemoteFileClick(file, true)}
+                      className={selectedRemoteFiles.some(f => f.name === file.name) ? 'selected' : ''}
+                      onClick={(e) => handleRemoteFileClick(file, e, false)}
+                      onDoubleClick={(e) => handleRemoteFileClick(file, e, true)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setContextMenu({ x: e.clientX, y: e.clientY, file });
-                        setSelectedRemoteFile(file);
+                        if (!selectedRemoteFiles.some(f => f.name === file.name)) {
+                          setSelectedRemoteFiles([file]);
+                        }
                       }}
                       draggable
                       onDragStart={(e) => {
+                        if (!selectedRemoteFiles.some(f => f.name === file.name)) {
+                          setSelectedRemoteFiles([file]);
+                        }
+                        const files = selectedRemoteFiles.some(f => f.name === file.name)
+                          ? selectedRemoteFiles
+                          : [file];
+                        
                         e.dataTransfer.setData('application/json', JSON.stringify({
                           type: 'remote',
-                          file: { name: file.name, path: currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}` }
+                          file,
+                          files
                         }));
-                        setSelectedRemoteFile(file);
+                        e.dataTransfer.effectAllowed = 'copy';
+                        setIsDragging(true);
                       }}
+                      onDragEnd={() => setIsDragging(false)}
                     >
                       <td>
                         <span className="file-name">

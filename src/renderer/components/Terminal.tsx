@@ -8,52 +8,17 @@ const xtermCache: Map<string, XTerm> = new Map();
 const shellReady: Map<string, boolean> = new Map();
 const dataListenerCleanup: Map<string, () => void> = new Map();
 
-type TerminalTheme = 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue' | 'nord' | 'dracula' | 'solarized' | 'synthwave' | 'one-dark' | 'catppuccin' | 'tokyo-night' | 'github-dark' | 'gruvbox';
+import { FALLBACK_TERMINAL_THEME } from '@shared/types';
 
 interface Props {
   connectionId: string;
   tabId: string;
-  terminalTheme?: TerminalTheme;
+  terminalTheme?: string;
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
 }
 
-const TERMINAL_THEMES: Record<TerminalTheme, { background: string; foreground: string; cursor: string; selectionBackground: string }> = {
-  // Classic — neutral glass, soft white text
-  default:     { background: 'rgba(20, 20, 22, 0.20)',    foreground: '#e0e0e0', cursor: '#e0e0e0', selectionBackground: 'rgba(255,255,255,0.18)' },
-  // Deep Dark — near-black, crisp white
-  dark:        { background: 'rgba(1, 1, 20, 0.20)',      foreground: '#f0f0f0', cursor: '#f0f0f0', selectionBackground: 'rgba(255,255,255,0.15)' },
-  // Light Glass — frosted white, dark ink (only light theme, foreground intentionally dark)
-  light:       { background: 'rgba(245, 245, 250, 0.20)', foreground: '#1a1a2e', cursor: '#1a1a2e', selectionBackground: 'rgba(0,0,0,0.12)' },
 
-  // ── FIXED: foreground was incorrectly set to dark #1a1a2e on dark backgrounds ──
-  // Monokai Pro — warm dark amber, gold text
-  monokai:     { background: 'rgba(18, 17, 15, 0.20)',    foreground: '#f8f8f2', cursor: '#f92672', selectionBackground: 'rgba(249,230,79,0.22)' },
-  // Matrix — deep green-tinted glass, neon green text
-  green:       { background: 'rgba(0, 20, 0, 0.20)',      foreground: '#39ff14', cursor: '#39ff14', selectionBackground: 'rgba(57,255,20,0.18)' },
-  // Ocean — midnight blue glass, cyan text
-  blue:        { background: 'rgba(5, 20, 60, 0.20)',     foreground: '#cce7ff', cursor: '#56cbf9', selectionBackground: 'rgba(56,189,248,0.22)' },
-  // Nord Aurora — arctic dark glass, snow white text
-  nord:        { background: 'rgba(46, 52, 64, 0.20)',    foreground: '#eceff4', cursor: '#88c0d0', selectionBackground: 'rgba(136,192,208,0.22)' },
-  // Dracula — deep purple glass, lavender text
-  dracula:     { background: 'rgba(40, 42, 54, 0.20)',    foreground: '#f8f8f2', cursor: '#ff79c6', selectionBackground: 'rgba(255,121,198,0.20)' },
-  // Solarized Dark — dark teal glass, base1 text
-  solarized:   { background: 'rgba(0, 43, 54, 0.20)',     foreground: '#93a1a1', cursor: '#268bd2', selectionBackground: 'rgba(38,139,210,0.22)' },
-  // Synthwave — deep purple neon, hot pink glow
-  synthwave:   { background: 'rgba(26, 8, 52, 0.20)',     foreground: '#f0c5ff', cursor: '#f97fff', selectionBackground: 'rgba(249,127,255,0.22)' },
-  // One Dark — cool grey, classic Atom palette
-  'one-dark':  { background: 'rgba(30, 33, 40, 0.20)',    foreground: '#abb2bf', cursor: '#61afef', selectionBackground: 'rgba(97,175,239,0.20)' },
-
-  // ── NEW THEMES ──
-  // Catppuccin Mocha — mauve/lavender, most popular modern theme
-  catppuccin:      { background: 'rgba(30, 30, 46, 0.20)',    foreground: '#cdd6f4', cursor: '#cba6f7', selectionBackground: 'rgba(203,166,247,0.20)' },
-  // Tokyo Night — deep navy blue, whisky gold accents
-  'tokyo-night':   { background: 'rgba(26, 27, 38, 0.20)',    foreground: '#a9b1d6', cursor: '#7aa2f7', selectionBackground: 'rgba(122,162,247,0.20)' },
-  // GitHub Dark — neutral dark, max readability
-  'github-dark':   { background: 'rgba(13, 17, 23, 0.20)',    foreground: '#e6edf3', cursor: '#58a6ff', selectionBackground: 'rgba(88,166,255,0.18)' },
-  // Gruvbox Dark — warm retro amber, high contrast
-  gruvbox:         { background: 'rgba(40, 40, 40, 0.20)',    foreground: '#ebdbb2', cursor: '#d79921', selectionBackground: 'rgba(215,153,33,0.22)' },
-};
 
 export default function Terminal({
   connectionId,
@@ -67,15 +32,34 @@ export default function Terminal({
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [connected, setConnected] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; selection: string } | null>(null);
-  const { glassOpacity } = useAppStore(s => ({ glassOpacity: s.glassOpacity }));
+  const { terminalThemes } = useAppStore(s => ({ terminalThemes: s.terminalThemes }));
 
   // Ensure we have a valid theme
-  const validTheme = TERMINAL_THEMES[terminalTheme] ? terminalTheme : 'default';
+  const themeConfig = useMemo(() => {
+    return terminalThemes.find(t => t.id === terminalTheme) || FALLBACK_TERMINAL_THEME;
+  }, [terminalThemes, terminalTheme]);
 
-  // 🚀 Cache the computed background to avoid regex on every render
-  const themedBackground = useMemo(() =>
-    TERMINAL_THEMES[validTheme].background.replace(/[\d.]+\)$/, `${glassOpacity})`),
-  [validTheme, glassOpacity]);
+  // Convert TerminalThemeConfig to xterm.js ITheme object
+  const xtermTheme = useMemo(() => {
+    const t: any = {
+      background: themeConfig.background,
+      foreground: themeConfig.foreground,
+      cursor: themeConfig.cursor,
+      cursorAccent: themeConfig.cursorAccent,
+      selectionBackground: themeConfig.selectionBackground,
+      selectionForeground: themeConfig.selectionForeground,
+      selectionInactiveBackground: themeConfig.selectionInactiveBackground,
+      black: themeConfig.black, red: themeConfig.red, green: themeConfig.green, yellow: themeConfig.yellow,
+      blue: themeConfig.blue, magenta: themeConfig.magenta, cyan: themeConfig.cyan, white: themeConfig.white,
+      brightBlack: themeConfig.brightBlack, brightRed: themeConfig.brightRed,
+      brightGreen: themeConfig.brightGreen, brightYellow: themeConfig.brightYellow,
+      brightBlue: themeConfig.brightBlue, brightMagenta: themeConfig.brightMagenta,
+      brightCyan: themeConfig.brightCyan, brightWhite: themeConfig.brightWhite,
+    };
+    // remove undefined keys
+    Object.keys(t).forEach(key => t[key] === undefined && delete t[key]);
+    return t;
+  }, [themeConfig]);
 
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -144,10 +128,7 @@ export default function Terminal({
         fontWeightBold: '600',
         letterSpacing: 0,
         lineHeight: 1.2,
-        theme: {
-            ...TERMINAL_THEMES[validTheme],
-            background: themedBackground,
-          },
+        theme: xtermTheme,
         allowTransparency: true,
         scrollback: 10000,
         allowProposedApi: true,
@@ -253,17 +234,14 @@ export default function Terminal({
         resizeObserverRef.current = null;
       }
     };
-  }, [tabId, validTheme]);
+  }, [tabId, xtermTheme]);
 
-  // Update terminal theme dynamically when slider or theme changes
+  // Update terminal theme dynamically when theme changes
   useEffect(() => {
     if (xtermRef.current) {
-      xtermRef.current.options.theme = {
-        ...TERMINAL_THEMES[validTheme],
-        background: themedBackground,
-      };
+      xtermRef.current.options.theme = xtermTheme;
     }
-  }, [validTheme, glassOpacity, themedBackground]);
+  }, [xtermTheme]);
 
   const initShell = async (xterm: XTerm) => {
     // Skip if shell already initialized for this connection

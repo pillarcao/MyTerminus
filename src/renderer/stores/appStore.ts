@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Connection, SFTPFile, Group, Theme, THEMES } from '@shared/types';
+import { Connection, SFTPFile, Group, Theme, THEMES, TerminalThemeConfig, AppearanceConfig, DEFAULT_APPEARANCE } from '@shared/types';
 
 interface Tab {
   id: string;
@@ -20,6 +20,10 @@ interface AppState {
   expandedGroups: Set<string>;
   showCommandBar: boolean;
   glassOpacity: number;
+
+  // Configuration
+  terminalThemes: TerminalThemeConfig[];
+  appearanceConfig: AppearanceConfig;
 
   // SFTP state per connection
   sftpPath: Record<string, string>;
@@ -44,7 +48,12 @@ interface AppState {
   toggleGroup: (groupId: string) => void;
   setShowCommandBar: (show: boolean) => void;
   setGlassOpacity: (opacity: number) => void;
+
+  // Config actions
+  setTerminalThemes: (themes: TerminalThemeConfig[]) => void;
+  setAppearanceConfig: (config: AppearanceConfig) => void;
 }
+
 
 export const useAppStore = create<AppState>((set) => ({
   connections: [],
@@ -61,6 +70,9 @@ export const useAppStore = create<AppState>((set) => ({
   localPath: {},
   showCommandBar: false,
   glassOpacity: 0.35,
+
+  terminalThemes: [],
+  appearanceConfig: DEFAULT_APPEARANCE,
 
   setConnections: (connections) => set({ connections }),
   setGroups: (groups) => set({ groups }),
@@ -111,4 +123,7 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   setShowCommandBar: (show) => set({ showCommandBar: show }),
   setGlassOpacity: (opacity) => set({ glassOpacity: opacity }),
+
+  setTerminalThemes: (themes) => set({ terminalThemes: themes }),
+  setAppearanceConfig: (config) => set({ appearanceConfig: config }),
 }));

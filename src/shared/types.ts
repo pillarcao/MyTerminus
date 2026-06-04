@@ -14,7 +14,7 @@ export interface Connection {
   password?: string;
   privateKeyPath?: string;
   groupId?: string;
-  terminalTheme?: 'default' | 'dark' | 'light' | 'monokai' | 'green' | 'blue' | 'nord' | 'dracula' | 'solarized' | 'synthwave' | 'one-dark' | 'catppuccin' | 'tokyo-night' | 'github-dark' | 'gruvbox';
+  terminalTheme?: string; // theme file id (e.g. 'nord', 'dracula', or custom)
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
 }
@@ -73,6 +73,75 @@ export const THEMES: Theme[] = [
   },
 ];
 
+// ── Terminal Theme Config ──────────────────────────────────────────────────
+// Maps to a single .conf file in the themes/ directory.
+// Keys correspond to xterm.js ITheme interface.
+export interface TerminalThemeConfig {
+  id: string;                        // filename without .conf extension
+  name: string;                      // from: name = ...
+  description?: string;
+  // Core colors
+  background: string;                // supports rgba(r,g,b,a) for transparency
+  foreground: string;
+  cursor: string;
+  cursorAccent?: string;
+  // Selection
+  selectionBackground?: string;
+  selectionForeground?: string;
+  selectionInactiveBackground?: string;
+  // ANSI 16 colors
+  black?: string;
+  red?: string;
+  green?: string;
+  yellow?: string;
+  blue?: string;
+  magenta?: string;
+  cyan?: string;
+  white?: string;
+  brightBlack?: string;
+  brightRed?: string;
+  brightGreen?: string;
+  brightYellow?: string;
+  brightBlue?: string;
+  brightMagenta?: string;
+  brightCyan?: string;
+  brightWhite?: string;
+}
+
+// ── App Appearance Config ──────────────────────────────────────────────────
+// Maps to appearance.conf in the config directory.
+export interface AppearanceConfig {
+  glassOpacity: number;    // 0.0–1.0, overall UI panel transparency
+  blurSidebar: number;     // px, sidebar backdrop blur
+  blurHeader: number;      // px, header backdrop blur
+  blurModal: number;       // px, modal backdrop blur
+  glassSaturate: number;   // %, glass saturation
+  uiTintHue: number;       // 0–360, UI panel tint hue
+  uiTintSat: number;       // 0–100, UI panel tint saturation
+  uiTintLight: number;     // 0–100, UI panel tint lightness
+}
+
+export const DEFAULT_APPEARANCE: AppearanceConfig = {
+  glassOpacity: 0.35,
+  blurSidebar: 48,
+  blurHeader: 24,
+  blurModal: 40,
+  glassSaturate: 180,
+  uiTintHue: 240,
+  uiTintSat: 10,
+  uiTintLight: 98,
+};
+
+// ── Default fallback terminal theme (used when theme file is missing) ──────
+export const FALLBACK_TERMINAL_THEME: TerminalThemeConfig = {
+  id: 'default',
+  name: 'Default',
+  background: 'rgba(20, 20, 22, 0.35)',
+  foreground: '#e0e0e0',
+  cursor: '#e0e0e0',
+  selectionBackground: 'rgba(255,255,255,0.18)',
+};
+
 declare global {
   interface Window {
     electronAPI: {
@@ -116,6 +185,20 @@ declare global {
       clipboardRead: () => Promise<string>;
       clipboardWrite: (text: string) => Promise<boolean>;
       platform: string;
+
+      // ── Theme & Appearance config ────────────────────────────────────────
+      /** List all terminal themes from the themes/ directory */
+      listTerminalThemes: () => Promise<TerminalThemeConfig[]>;
+      /** Open the themes directory in Finder / Explorer */
+      openThemesDir: () => Promise<void>;
+      /** Get current appearance config (parsed from appearance.conf) */
+      getAppearanceConfig: () => Promise<AppearanceConfig>;
+      /** Save appearance config back to appearance.conf */
+      saveAppearanceConfig: (config: AppearanceConfig) => Promise<{ success: boolean }>;
+      /** Open appearance.conf in the default text editor */
+      openAppearanceConfig: () => Promise<void>;
+      /** Get the config directory path (for display) */
+      getConfigDir: () => Promise<string>;
     };
   }
 }

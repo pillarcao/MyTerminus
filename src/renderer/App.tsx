@@ -27,6 +27,9 @@ export default function App() {
     setShowCommandBar,
     glassOpacity,
     setGlassOpacity,
+    appearanceConfig,
+    setTerminalThemes,
+    setAppearanceConfig,
   } = useAppStore();
 
   const [showConnectionModal, setShowConnectionModal] = useState(false);
@@ -49,20 +52,33 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--bg-primary', `hsla(240, 10%, 98%, ${glassOpacity})`);
-    root.style.setProperty('--bg-secondary', `hsla(0, 0%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
-    root.style.setProperty('--bg-tertiary', `hsla(240, 5%, 96%, ${Math.max(0, glassOpacity - 0.15)})`);
-    root.style.setProperty('--glass-bg', `hsla(0, 0%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
-  }, [glassOpacity]);
+    // Set colors based on appearance config tint and opacity
+    const { uiTintHue, uiTintSat, uiTintLight, blurSidebar, blurHeader, blurModal, glassSaturate } = appearanceConfig;
+    root.style.setProperty('--bg-primary', `hsla(${uiTintHue}, ${uiTintSat}%, ${uiTintLight}%, ${glassOpacity})`);
+    root.style.setProperty('--bg-secondary', `hsla(${uiTintHue}, ${Math.max(0, uiTintSat - 10)}%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
+    root.style.setProperty('--bg-tertiary', `hsla(${uiTintHue}, ${Math.max(0, uiTintSat - 5)}%, 96%, ${Math.max(0, glassOpacity - 0.15)})`);
+    root.style.setProperty('--glass-bg', `hsla(${uiTintHue}, ${Math.max(0, uiTintSat - 10)}%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
+    
+    // Set blur variables
+    root.style.setProperty('--blur-sidebar', `${blurSidebar}px`);
+    root.style.setProperty('--blur-header', `${blurHeader}px`);
+    root.style.setProperty('--blur-modal', `${blurModal}px`);
+    root.style.setProperty('--glass-saturate', `${glassSaturate}%`);
+  }, [glassOpacity, appearanceConfig]);
 
   const loadData = async () => {
     try {
-      const [connectionsList, groupsList] = await Promise.all([
+      const [connectionsList, groupsList, themesList, appearanceCfg] = await Promise.all([
         window.electronAPI.listConnections(),
         window.electronAPI.listGroups(),
+        window.electronAPI.listTerminalThemes(),
+        window.electronAPI.getAppearanceConfig(),
       ]);
       setConnections(connectionsList);
       setGroups(groupsList);
+      setTerminalThemes(themesList);
+      setAppearanceConfig(appearanceCfg);
+      setGlassOpacity(appearanceCfg.glassOpacity);
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -255,7 +271,11 @@ export default function App() {
               max="1" 
               step="0.05"
               value={glassOpacity}
-              onChange={(e) => setGlassOpacity(parseFloat(e.target.value))}
+              onChange={(e) => {
+                const newOp = parseFloat(e.target.value);
+                setGlassOpacity(newOp);
+                window.electronAPI.saveAppearanceConfig({ ...appearanceConfig, glassOpacity: newOp });
+              }}
               style={{ width: '60px', opacity: 0.8 }}
               title="Adjust Glassmorphism Transparency"
             />
@@ -266,6 +286,13 @@ export default function App() {
             title="Toggle Command Bar (Batch Send)"
           >
             ⌨️
+          </button>
+          <button
+            className="btn-icon"
+            onClick={() => window.electronAPI.openAppearanceConfig()}
+            title="Edit Appearance Config"
+          >
+            🎨
           </button>
         </div>
       </div>

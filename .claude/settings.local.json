@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(ls:*)",
+      "Bash(pkill -f \"electron\\\\|vite\\\\|wait-on\")",
+      "Bash(lsof -ti:5173)",
+      "Bash(xargs kill:*)",
+      "Bash(pkill -f \"electron\\\\|vite\")",
+      "Bash(pkill -f \"electron\\\\|vite\\\\|wait-on\" sleep 2 lsof -ti:5173)",
+      "Bash(pkill -f \"electron\\\\|vite\\\\|wait-on\" sleep 1 lsof -ti:5173)",
+      "Bash(pkill -f electron)"
+    ]
+  }
+}

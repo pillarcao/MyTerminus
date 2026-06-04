@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOptions, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOptions, clipboard, shell } from 'electron';
 import * as path from 'path';
 import * as os from 'os';
 import Store from 'electron-store';
 import { Client, ConnectConfig, SFTPWrapper } from 'ssh2';
 import * as fs from 'fs';
+import { exec } from 'child_process';
 
 const store = new Store();
 
@@ -64,6 +65,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  initConfigDir();
   createWindow();
 
   // Create application menu
@@ -803,3 +805,247 @@ ipcMain.handle('local:upload', async (_event, localPath: string, remotePath: str
     });
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Theme & Appearance Config System
+// ══════════════════════════════════════════════════════════════════════════════
+
+function getConfigDir(): string {
+  return path.join(app.getPath('userData'), 'config');
+}
+
+function getThemesDir(): string {
+  return path.join(getConfigDir(), 'themes');
+}
+
+function getAppearancePath(): string {
+  return path.join(getConfigDir(), 'appearance.conf');
+}
+
+/** Parse a simple key = value .conf file. Lines starting with # are comments. */
+function parseConf(content: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eqIdx = line.indexOf('=');
+    if (eqIdx < 0) continue;
+    const key = line.slice(0, eqIdx).trim();
+    const val = line.slice(eqIdx + 1).trim();
+    if (key) result[key] = val;
+  }
+  return result;
+}
+
+/** Serialise a conf object back to string (preserves comment header). */
+function serializeConf(header: string, data: Record<string, string>): string {
+  const lines = [header, ''];
+  for (const [k, v] of Object.entries(data)) {
+    lines.push(`${k.padEnd(20)} = ${v}`);
+  }
+  return lines.join('\n') + '\n';
+}
+
+// ── Built-in theme definitions ───────────────────────────────────────────────
+const BUILT_IN_THEMES: Array<Record<string, string>> = [
+  { _id: 'default', name: 'Default', description: 'Classic neutral glass, soft white text', background: 'rgba(20, 20, 22, 0.35)', foreground: '#e0e0e0', cursor: '#e0e0e0', 'cursor-accent': '#1c1c1e', selection: 'rgba(255,255,255,0.18)', black: '#1c1c1e', red: '#ff453a', green: '#32d74b', yellow: '#ffd60a', blue: '#0a84ff', magenta: '#bf5af2', cyan: '#5ac8fa', white: '#e0e0e0', 'bright-black': '#636366', 'bright-red': '#ff6961', 'bright-green': '#34c759', 'bright-yellow': '#ffd60a', 'bright-blue': '#409cff', 'bright-magenta': '#da8fff', 'bright-cyan': '#70d7ff', 'bright-white': '#f5f5f7' },
+  { _id: 'dark', name: 'Deep Dark', description: 'Near-black, crisp white', background: 'rgba(1, 1, 20, 0.35)', foreground: '#f0f0f0', cursor: '#f0f0f0', selection: 'rgba(255,255,255,0.15)', black: '#0a0a0f', red: '#ff4d4d', green: '#4dff91', yellow: '#ffd700', blue: '#4d9eff', magenta: '#c56eff', cyan: '#4dd9ff', white: '#f0f0f0', 'bright-black': '#3c3c50', 'bright-red': '#ff7070', 'bright-green': '#70ffaa', 'bright-yellow': '#ffe54d', 'bright-blue': '#70b8ff', 'bright-magenta': '#d88fff', 'bright-cyan': '#70e8ff', 'bright-white': '#ffffff' },
+  { _id: 'light', name: 'Light Glass', description: 'Frosted white, dark ink', background: 'rgba(245, 245, 250, 0.35)', foreground: '#1a1a2e', cursor: '#1a1a2e', selection: 'rgba(0,0,0,0.12)', black: '#1a1a2e', red: '#c0392b', green: '#27ae60', yellow: '#d4a017', blue: '#2980b9', magenta: '#8e44ad', cyan: '#16a085', white: '#ecf0f1', 'bright-black': '#555577', 'bright-red': '#e74c3c', 'bright-green': '#2ecc71', 'bright-yellow': '#f1c40f', 'bright-blue': '#3498db', 'bright-magenta': '#9b59b6', 'bright-cyan': '#1abc9c', 'bright-white': '#ffffff' },
+  { _id: 'monokai', name: 'Monokai Pro', description: 'Warm dark amber, gold text', background: 'rgba(18, 17, 15, 0.35)', foreground: '#f8f8f2', cursor: '#f92672', 'cursor-accent': '#272822', selection: 'rgba(249,230,79,0.22)', black: '#272822', red: '#f92672', green: '#a6e22e', yellow: '#f4bf75', blue: '#66d9e8', magenta: '#ae81ff', cyan: '#a1efe4', white: '#f8f8f2', 'bright-black': '#75715e', 'bright-red': '#f92672', 'bright-green': '#a6e22e', 'bright-yellow': '#f4bf75', 'bright-blue': '#66d9e8', 'bright-magenta': '#ae81ff', 'bright-cyan': '#a1efe4', 'bright-white': '#f9f8f5' },
+  { _id: 'green', name: 'Matrix Green', description: 'Deep green-tinted glass, neon green text', background: 'rgba(0, 20, 0, 0.35)', foreground: '#39ff14', cursor: '#39ff14', selection: 'rgba(57,255,20,0.18)', black: '#001400', red: '#ff2020', green: '#39ff14', yellow: '#ccff00', blue: '#00ccff', magenta: '#cc00ff', cyan: '#00ffcc', white: '#39ff14', 'bright-black': '#006600', 'bright-red': '#ff6666', 'bright-green': '#66ff57', 'bright-yellow': '#ddff44', 'bright-blue': '#44ddff', 'bright-magenta': '#dd44ff', 'bright-cyan': '#44ffdd', 'bright-white': '#aaffaa' },
+  { _id: 'blue', name: 'Ocean Blue', description: 'Midnight blue glass, cyan text', background: 'rgba(5, 20, 60, 0.35)', foreground: '#cce7ff', cursor: '#56cbf9', selection: 'rgba(56,189,248,0.22)', black: '#051428', red: '#ff4d6d', green: '#06d6a0', yellow: '#ffd166', blue: '#118ab2', magenta: '#9b5de5', cyan: '#56cbf9', white: '#cce7ff', 'bright-black': '#1a3a6b', 'bright-red': '#ff7096', 'bright-green': '#40e0c0', 'bright-yellow': '#ffe099', 'bright-blue': '#38bdf8', 'bright-magenta': '#b57bee', 'bright-cyan': '#88dcfa', 'bright-white': '#e8f4ff' },
+  { _id: 'nord', name: 'Nord', description: 'Arctic, clean, elegant', background: 'rgba(46, 52, 64, 0.35)', foreground: '#eceff4', cursor: '#88c0d0', 'cursor-accent': '#2e3440', selection: 'rgba(136,192,208,0.22)', 'selection-inactive': 'rgba(136,192,208,0.10)', black: '#2e3440', red: '#bf616a', green: '#a3be8c', yellow: '#ebcb8b', blue: '#81a1c1', magenta: '#b48ead', cyan: '#88c0d0', white: '#e5e9f0', 'bright-black': '#4c566a', 'bright-red': '#bf616a', 'bright-green': '#a3be8c', 'bright-yellow': '#ebcb8b', 'bright-blue': '#81a1c1', 'bright-magenta': '#b48ead', 'bright-cyan': '#8fbcbb', 'bright-white': '#eceff4' },
+  { _id: 'dracula', name: 'Dracula', description: 'Deep purple glass, lavender text', background: 'rgba(40, 42, 54, 0.35)', foreground: '#f8f8f2', cursor: '#ff79c6', 'cursor-accent': '#282a36', selection: 'rgba(255,121,198,0.20)', black: '#21222c', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#f8f8f2', 'bright-black': '#6272a4', 'bright-red': '#ff6e6e', 'bright-green': '#69ff94', 'bright-yellow': '#ffffa5', 'bright-blue': '#d6acff', 'bright-magenta': '#ff92df', 'bright-cyan': '#a4ffff', 'bright-white': '#ffffff' },
+  { _id: 'solarized', name: 'Solarized Dark', description: 'Dark teal glass, base1 text', background: 'rgba(0, 43, 54, 0.35)', foreground: '#93a1a1', cursor: '#268bd2', selection: 'rgba(38,139,210,0.22)', black: '#073642', red: '#dc322f', green: '#859900', yellow: '#b58900', blue: '#268bd2', magenta: '#d33682', cyan: '#2aa198', white: '#eee8d5', 'bright-black': '#002b36', 'bright-red': '#cb4b16', 'bright-green': '#586e75', 'bright-yellow': '#657b83', 'bright-blue': '#839496', 'bright-magenta': '#6c71c4', 'bright-cyan': '#93a1a1', 'bright-white': '#fdf6e3' },
+  { _id: 'synthwave', name: 'Synthwave', description: 'Deep purple neon, hot pink glow', background: 'rgba(26, 8, 52, 0.35)', foreground: '#f0c5ff', cursor: '#f97fff', selection: 'rgba(249,127,255,0.22)', black: '#1a0834', red: '#fe4450', green: '#72f1b8', yellow: '#fede5d', blue: '#2de2e6', magenta: '#f97fff', cyan: '#03edf9', white: '#f0c5ff', 'bright-black': '#4d2a6b', 'bright-red': '#ff7b89', 'bright-green': '#a5ffdb', 'bright-yellow': '#ffe78a', 'bright-blue': '#6ef5f5', 'bright-magenta': '#fcb3ff', 'bright-cyan': '#59f5fe', 'bright-white': '#ffffff' },
+  { _id: 'one-dark', name: 'One Dark', description: 'Cool grey, classic Atom palette', background: 'rgba(30, 33, 40, 0.35)', foreground: '#abb2bf', cursor: '#61afef', 'cursor-accent': '#1e2128', selection: 'rgba(97,175,239,0.20)', black: '#282c34', red: '#e06c75', green: '#98c379', yellow: '#e5c07b', blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#abb2bf', 'bright-black': '#5c6370', 'bright-red': '#e06c75', 'bright-green': '#98c379', 'bright-yellow': '#e5c07b', 'bright-blue': '#61afef', 'bright-magenta': '#c678dd', 'bright-cyan': '#56b6c2', 'bright-white': '#ffffff' },
+  { _id: 'catppuccin', name: 'Catppuccin Mocha', description: 'Mauve and lavender, popular modern theme', background: 'rgba(30, 30, 46, 0.35)', foreground: '#cdd6f4', cursor: '#cba6f7', 'cursor-accent': '#1e1e2e', selection: 'rgba(203,166,247,0.20)', black: '#45475a', red: '#f38ba8', green: '#a6e3a1', yellow: '#f9e2af', blue: '#89b4fa', magenta: '#f5c2e7', cyan: '#94e2d5', white: '#bac2de', 'bright-black': '#585b70', 'bright-red': '#f38ba8', 'bright-green': '#a6e3a1', 'bright-yellow': '#f9e2af', 'bright-blue': '#89b4fa', 'bright-magenta': '#f5c2e7', 'bright-cyan': '#94e2d5', 'bright-white': '#a6adc8' },
+  { _id: 'tokyo-night', name: 'Tokyo Night', description: 'Deep navy blue, whisky gold accents', background: 'rgba(26, 27, 38, 0.35)', foreground: '#a9b1d6', cursor: '#7aa2f7', 'cursor-accent': '#1a1b26', selection: 'rgba(122,162,247,0.20)', black: '#15161e', red: '#f7768e', green: '#9ece6a', yellow: '#e0af68', blue: '#7aa2f7', magenta: '#bb9af7', cyan: '#7dcfff', white: '#a9b1d6', 'bright-black': '#414868', 'bright-red': '#f7768e', 'bright-green': '#9ece6a', 'bright-yellow': '#e0af68', 'bright-blue': '#7aa2f7', 'bright-magenta': '#bb9af7', 'bright-cyan': '#7dcfff', 'bright-white': '#c0caf5' },
+  { _id: 'github-dark', name: 'GitHub Dark', description: 'Neutral dark, max readability', background: 'rgba(13, 17, 23, 0.35)', foreground: '#e6edf3', cursor: '#58a6ff', selection: 'rgba(88,166,255,0.18)', black: '#0d1117', red: '#ff7b72', green: '#3fb950', yellow: '#d29922', blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4', 'bright-black': '#21262d', 'bright-red': '#ffa198', 'bright-green': '#56d364', 'bright-yellow': '#e3b341', 'bright-blue': '#79c0ff', 'bright-magenta': '#d2a8ff', 'bright-cyan': '#56d4dd', 'bright-white': '#cdd9e5' },
+  { _id: 'gruvbox', name: 'Gruvbox Dark', description: 'Warm retro amber, high contrast', background: 'rgba(40, 40, 40, 0.35)', foreground: '#ebdbb2', cursor: '#d79921', selection: 'rgba(215,153,33,0.22)', black: '#282828', red: '#cc241d', green: '#98971a', yellow: '#d79921', blue: '#458588', magenta: '#b16286', cyan: '#689d6a', white: '#a89984', 'bright-black': '#928374', 'bright-red': '#fb4934', 'bright-green': '#b8bb26', 'bright-yellow': '#fabd2f', 'bright-blue': '#83a598', 'bright-magenta': '#d3869b', 'bright-cyan': '#8ec07c', 'bright-white': '#ebdbb2' },
+];
+
+const APPEARANCE_CONF_HEADER = `# MyTerminus Appearance Configuration
+# Edit this file to customise the glassmorphism and UI appearance.
+# Save the file and click "Reload" in the app, or restart the app.
+#
+# glass-opacity    : 0.0 – 1.0  (overall UI transparency)
+# blur-*           : blur radius in pixels
+# glass-saturate   : saturation % for the glass effect
+# ui-tint-*        : HSL values for the UI panel tint colour`;
+
+const THEME_CONF_HEADER = (name: string, desc: string) =>
+  `# MyTerminus Terminal Theme — ${name}\n# ${desc}\n#\n# Colour values: #rrggbb  or  rgba(r, g, b, alpha)\n# alpha controls terminal transparency (0.0 = fully transparent, 1.0 = opaque)`;
+
+/** Generate the text content for a built-in theme .conf file */
+function generateThemeConfContent(t: Record<string, string>): string {
+  const lines: string[] = [THEME_CONF_HEADER(t.name, t.description || ''), ''];
+  const meta = ['name', 'description'];
+  const core = ['background', 'foreground', 'cursor', 'cursor-accent'];
+  const sel  = ['selection', 'selection-fg', 'selection-inactive'];
+  const ansi = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+  const brt  = ['bright-black', 'bright-red', 'bright-green', 'bright-yellow', 'bright-blue', 'bright-magenta', 'bright-cyan', 'bright-white'];
+
+  const section = (title: string, keys: string[]) => {
+    lines.push(`# ── ${title} ──`);
+    for (const k of keys) {
+      if (t[k]) lines.push(`${k.padEnd(20)} = ${t[k]}`);
+    }
+    lines.push('');
+  };
+  section('Meta', meta);
+  section('Core Colors', core);
+  section('Selection', sel);
+  section('ANSI Colors', ansi);
+  section('Bright ANSI Colors', brt);
+  return lines.join('\n');
+}
+
+/** Parse a theme .conf file into a TerminalThemeConfig object */
+function parseThemeConf(id: string, content: string): any {
+  const d = parseConf(content);
+  return {
+    id,
+    name: d['name'] || id,
+    description: d['description'],
+    background: d['background'] || 'rgba(20,20,22,0.35)',
+    foreground: d['foreground'] || '#e0e0e0',
+    cursor: d['cursor'] || '#e0e0e0',
+    cursorAccent: d['cursor-accent'],
+    selectionBackground: d['selection'],
+    selectionForeground: d['selection-fg'],
+    selectionInactiveBackground: d['selection-inactive'],
+    black: d['black'], red: d['red'], green: d['green'], yellow: d['yellow'],
+    blue: d['blue'], magenta: d['magenta'], cyan: d['cyan'], white: d['white'],
+    brightBlack: d['bright-black'], brightRed: d['bright-red'],
+    brightGreen: d['bright-green'], brightYellow: d['bright-yellow'],
+    brightBlue: d['bright-blue'], brightMagenta: d['bright-magenta'],
+    brightCyan: d['bright-cyan'], brightWhite: d['bright-white'],
+  };
+}
+
+/** Parse appearance.conf into an AppearanceConfig object */
+function parseAppearanceConf(content: string): any {
+  const d = parseConf(content);
+  return {
+    glassOpacity:  parseFloat(d['glass-opacity']  ?? '0.35'),
+    blurSidebar:   parseInt  (d['blur-sidebar']   ?? '48', 10),
+    blurHeader:    parseInt  (d['blur-header']     ?? '24', 10),
+    blurModal:     parseInt  (d['blur-modal']      ?? '40', 10),
+    glassSaturate: parseInt  (d['glass-saturate']  ?? '180', 10),
+    uiTintHue:     parseInt  (d['ui-tint-hue']     ?? '240', 10),
+    uiTintSat:     parseInt  (d['ui-tint-sat']     ?? '10', 10),
+    uiTintLight:   parseInt  (d['ui-tint-light']   ?? '98', 10),
+  };
+}
+
+/** Serialize AppearanceConfig back to .conf format */
+function serializeAppearanceConf(cfg: any): string {
+  return [
+    APPEARANCE_CONF_HEADER, '',
+    `${'glass-opacity'.padEnd(20)} = ${cfg.glassOpacity}`,
+    '',
+    `${'blur-sidebar'.padEnd(20)} = ${cfg.blurSidebar}`,
+    `${'blur-header'.padEnd(20)} = ${cfg.blurHeader}`,
+    `${'blur-modal'.padEnd(20)} = ${cfg.blurModal}`,
+    '',
+    `${'glass-saturate'.padEnd(20)} = ${cfg.glassSaturate}`,
+    '',
+    `${'ui-tint-hue'.padEnd(20)} = ${cfg.uiTintHue}`,
+    `${'ui-tint-sat'.padEnd(20)} = ${cfg.uiTintSat}`,
+    `${'ui-tint-light'.padEnd(20)} = ${cfg.uiTintLight}`,
+    '',
+  ].join('\n');
+}
+
+/** Initialise config directory: create dirs and write default files if absent */
+function initConfigDir() {
+  const themesDir = getThemesDir();
+  const appearancePath = getAppearancePath();
+
+  if (!fs.existsSync(themesDir)) {
+    fs.mkdirSync(themesDir, { recursive: true });
+    console.log('[Config] Created themes directory:', themesDir);
+  }
+
+  // Write built-in theme files only if they don't exist yet
+  for (const t of BUILT_IN_THEMES) {
+    const filePath = path.join(themesDir, `${t._id}.conf`);
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, generateThemeConfContent(t), 'utf-8');
+      console.log('[Config] Wrote theme:', t._id);
+    }
+  }
+
+  // Write appearance.conf if absent
+  if (!fs.existsSync(appearancePath)) {
+    fs.writeFileSync(appearancePath, serializeAppearanceConf({
+      glassOpacity: 0.35, blurSidebar: 48, blurHeader: 24,
+      blurModal: 40, glassSaturate: 180, uiTintHue: 240, uiTintSat: 10, uiTintLight: 98,
+    }), 'utf-8');
+    console.log('[Config] Wrote default appearance.conf');
+  }
+}
+
+// ── IPC Handlers ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('themes:list', (): any[] => {
+  const themesDir = getThemesDir();
+  if (!fs.existsSync(themesDir)) return [];
+  const themes: any[] = [];
+  for (const file of fs.readdirSync(themesDir)) {
+    if (!file.endsWith('.conf')) continue;
+    const id = file.replace(/\.conf$/, '');
+    try {
+      const content = fs.readFileSync(path.join(themesDir, file), 'utf-8');
+      themes.push(parseThemeConf(id, content));
+    } catch (err) {
+      console.error('[Config] Failed to parse theme:', file, err);
+    }
+  }
+  // Sort: built-in order first, then alphabetical for custom
+  const builtInOrder = BUILT_IN_THEMES.map(t => t._id);
+  themes.sort((a, b) => {
+    const ai = builtInOrder.indexOf(a.id);
+    const bi = builtInOrder.indexOf(b.id);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1;
+    if (bi >= 0) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  return themes;
+});
+
+ipcMain.handle('themes:openDir', () => {
+  shell.showItemInFolder(getThemesDir());
+});
+
+ipcMain.handle('appearance:get', (): any => {
+  const p = getAppearancePath();
+  if (!fs.existsSync(p)) {
+    return { glassOpacity: 0.35, blurSidebar: 48, blurHeader: 24, blurModal: 40, glassSaturate: 180, uiTintHue: 240, uiTintSat: 10, uiTintLight: 98 };
+  }
+  return parseAppearanceConf(fs.readFileSync(p, 'utf-8'));
+});
+
+ipcMain.handle('appearance:save', (_event, cfg: any) => {
+  try {
+    fs.writeFileSync(getAppearancePath(), serializeAppearanceConf(cfg), 'utf-8');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('appearance:openFile', () => {
+  const p = getAppearancePath();
+  if (process.platform === 'win32') {
+    exec(`notepad "${p}"`);
+  } else if (process.platform === 'darwin') {
+    exec(`open -t "${p}"`);
+  } else {
+    exec(`xdg-open "${p}"`);
+  }
+});
+
+ipcMain.handle('config:getDir', () => getConfigDir());

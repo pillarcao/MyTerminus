@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Connection, Group } from '@shared/types';
+import { useAppStore } from '../stores/appStore';
 
 interface Props {
   connection: Connection | null;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function ConnectionModal({ connection, groups, onSave, onClose }: Props) {
+  const { terminalThemes } = useAppStore(s => ({ terminalThemes: s.terminalThemes }));
   const [form, setForm] = useState<Connection>({
     id: '',
     name: '',
@@ -115,26 +117,27 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
 
             <div className="form-group">
               <label>Terminal Theme</label>
-              <select
-                value={form.terminalTheme || 'default'}
-                onChange={(e) => setForm({ ...form, terminalTheme: e.target.value as any })}
-              >
-                <option value="default">Default (Black)</option>
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="one-dark">One Dark</option>
-                <option value="github-dark">GitHub Dark</option>
-                <option value="catppuccin">Catppuccin Mocha 🐱</option>
-                <option value="tokyo-night">Tokyo Night 🌃</option>
-                <option value="gruvbox">Gruvbox Dark 🟡</option>
-                <option value="monokai">Monokai Pro</option>
-                <option value="dracula">Dracula 🧛</option>
-                <option value="nord">Nord (Arctic) 🌨</option>
-                <option value="solarized">Solarized Dark</option>
-                <option value="synthwave">Synthwave 🌈</option>
-                <option value="green">Green (Matrix) 🟢</option>
-                <option value="blue">Blue (Ocean) 🔵</option>
-              </select>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={form.terminalTheme || 'default'}
+                  onChange={(e) => setForm({ ...form, terminalTheme: e.target.value as any })}
+                  style={{ flex: 1 }}
+                >
+                  {terminalThemes.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  title="Open themes directory"
+                  onClick={() => window.electronAPI.openThemesDir()}
+                >
+                  📁
+                </button>
+              </div>
             </div>
             <div className="form-row">
               <div className="form-group">

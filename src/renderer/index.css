@@ -43,7 +43,9 @@
   --radius-lg: 16px;
 
   /* Glass Standard */
-  --blur: 40px;
+  --blur-sidebar: 48px;
+  --blur-header: 24px;
+  --blur-modal: 40px;
   --glass-saturate: 180%;
 
   /* Glass background for light theme */
@@ -169,8 +171,8 @@ strong,
   width: 280px;
   min-width: 280px;
   background: var(--glass-bg);
-  backdrop-filter: blur(48px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(var(--blur-sidebar)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-sidebar)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
@@ -439,8 +441,8 @@ strong,
   background: var(--glass-bg);
   border-bottom: 1px solid var(--border);
   min-height: 48px;
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(var(--blur-header)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-header)) saturate(var(--glass-saturate));
   -webkit-app-region: drag;
   padding-right: 0;
 }
@@ -736,8 +738,8 @@ strong,
   overflow: hidden;
   box-shadow: var(--shadow-medium);
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
   animation: modal-appear 0.4s var(--ease-out);
 }
 
@@ -862,8 +864,8 @@ strong,
   flex: 1;
   padding: 0;
   background: transparent;
-  backdrop-filter: blur(48px) saturate(200%) brightness(0.95);
-  -webkit-backdrop-filter: blur(48px) saturate(200%) brightness(0.95);
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate)) brightness(0.95);
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate)) brightness(0.95);
   border: 1px solid rgba(255, 255, 255, 0.06);
   position: relative;
   overflow: hidden;
@@ -903,8 +905,8 @@ strong,
     0 0 0 1px rgba(255, 255, 255, 0.06) inset;
   padding: 4px 0;
   min-width: 140px;
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
   animation: contextMenuIn 0.15s ease;
 }
 
@@ -1113,8 +1115,8 @@ strong,
   flex-direction: column;
   overflow: hidden;
   background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
 }
 
 .dual-toolbar {
@@ -1446,8 +1448,8 @@ strong,
   overflow-y: auto;
   font-size: 13px;
   background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
 }
 
 .host-detail.empty {
@@ -1765,8 +1767,8 @@ strong,
   padding: 28px;
   overflow: hidden;
   background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
 }
 
 .host-list-empty {
@@ -1777,8 +1779,8 @@ strong,
   justify-content: center;
   color: var(--text-muted);
   background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate));
 }
 
 .host-list-header {
@@ -2151,8 +2153,8 @@ strong,
   left: 8px;
   right: 8px;
   background: var(--glass-bg);
-  backdrop-filter: blur(40px) saturate(200%) brightness(1.1);
-  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.1);
+  backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate)) brightness(1.1);
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(var(--glass-saturate)) brightness(1.1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 24px;

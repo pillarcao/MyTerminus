@@ -73,6 +73,14 @@ const api = {
   clipboardRead: () => ipcRenderer.invoke('clipboard:read'),
   clipboardWrite: (text: string) => ipcRenderer.invoke('clipboard:write', text),
   platform: process.platform,
+
+  // Theme & Appearance
+  listTerminalThemes: () => ipcRenderer.invoke('themes:list'),
+  openThemesDir: () => ipcRenderer.invoke('themes:openDir'),
+  getAppearanceConfig: () => ipcRenderer.invoke('appearance:get'),
+  saveAppearanceConfig: (config: any) => ipcRenderer.invoke('appearance:save', config),
+  openAppearanceConfig: () => ipcRenderer.invoke('appearance:openFile'),
+  getConfigDir: () => ipcRenderer.invoke('config:getDir'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

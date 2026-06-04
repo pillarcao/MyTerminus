@@ -6,9 +6,9 @@ interface Props {
   tabId?: string;
   localPath?: string;
   onPathChange?: (path: string) => void;
-  onFileSelect: (file: LocalFile) => void;
+  onFileSelect: (file: LocalFile, e?: React.MouseEvent) => void;
   onDragStart: (file: LocalFile) => void;
-  selectedFile: string | null;
+  selectedFiles: string[];
   showHidden?: boolean;
 }
 
@@ -32,7 +32,7 @@ function fileReducer(state: FileState, action: FileAction): FileState {
   }
 }
 
-export default function LocalBrowser({ localPath, onPathChange, onFileSelect, onDragStart, selectedFile, showHidden = false }: Props) {
+export default function LocalBrowser({ localPath, onPathChange, onFileSelect, onDragStart, selectedFiles = [], showHidden = false }: Props) {
   const [currentPath, setCurrentPath] = useState<string>(localPath || '');
   const [inputPath, setInputPath] = useState<string>(localPath || '');
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -149,19 +149,23 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
     });
   }, [navigateTo]);
 
-  const handleFileClick = useCallback((file: LocalFile) => {
+  const handleFileClick = useCallback((file: LocalFile, e: React.MouseEvent) => {
     if (file.isDirectory) {
       navigateTo(file.path);
     } else {
-      onFileSelect(file);
+      onFileSelect(file, e);
     }
   }, [navigateTo, onFileSelect]);
 
   const handleDragStart = useCallback((e: React.DragEvent, file: LocalFile) => {
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'local', file }));
+    e.dataTransfer.setData('application/json', JSON.stringify({ 
+      type: 'local', 
+      file,
+      files: selectedFiles.includes(file.path) ? selectedFiles.map(path => ({ path, name: path.split(/[/\\]/).pop() })) : [{ path: file.path, name: file.name }]
+    }));
     e.dataTransfer.effectAllowed = 'copy';
     onDragStart(file);
-  }, [onDragStart]);
+  }, [onDragStart, selectedFiles]);
 
   const handleSort = useCallback((field: 'name' | 'modified') => {
     setSortField(prev => {
@@ -272,8 +276,8 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
               {sortedFiles.map((file) => (
                 <tr
                   key={file.path}
-                  className={selectedFile === file.path ? 'selected' : ''}
-                  onClick={() => handleFileClick(file)}
+                  className={selectedFiles.includes(file.path) ? 'selected' : ''}
+                  onClick={(e) => handleFileClick(file, e)}
                   draggable
                   onDragStart={(e) => handleDragStart(e, file)}
                 >
