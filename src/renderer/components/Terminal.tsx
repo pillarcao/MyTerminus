@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { useAppStore } from '../stores/appStore';
 
 // Module-level cache to persist xterm instances by tabId
 const xtermCache: Map<string, XTerm> = new Map();
+const fitAddonCache: Map<string, FitAddon> = new Map();
 const shellReady: Map<string, boolean> = new Map();
 const dataListenerCleanup: Map<string, () => void> = new Map();
 
@@ -122,14 +125,17 @@ export default function Terminal({
       xterm = new XTerm({
         cursorBlink: cursorBlink,
         cursorStyle: cursorStyle,
-        fontSize: 14,
-        fontFamily: '"SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace',
+        cursorWidth: 2,
+        fontSize: 13.5,
+        fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, Monaco, "Courier New", monospace',
         fontWeight: '400',
         fontWeightBold: '600',
-        letterSpacing: 0,
-        lineHeight: 1.2,
+        letterSpacing: 0.3,
+        lineHeight: 1.3,
         theme: xtermTheme,
         allowTransparency: true,
+        drawBoldTextInBrightColors: true,
+        minimumContrastRatio: 1,
         scrollback: 10000,
         allowProposedApi: true,
       });
@@ -160,6 +166,25 @@ export default function Terminal({
         }
       });
       xterm.open(terminalRef.current);
+
+      // Fit addon: accurate cols/rows from real cell metrics (replaces manual estimation)
+      const fitAddon = new FitAddon();
+      xterm.loadAddon(fitAddon);
+      fitAddonCache.set(tabId, fitAddon);
+
+      // WebGL addon: GPU-accelerated, crisp rendering. Gracefully fall back to the
+      // default (DOM) renderer if WebGL is unavailable or the context is lost.
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => {
+          console.warn('[Terminal] WebGL context lost, falling back to DOM renderer');
+          webgl.dispose();
+        });
+        xterm.loadAddon(webgl);
+      } catch (err) {
+        console.warn('[Terminal] WebGL renderer unavailable, using DOM renderer:', err);
+      }
+
       xtermCache.set(tabId, xterm);
       xtermRef.current = xterm;
 
@@ -202,22 +227,21 @@ export default function Terminal({
       }
     });
 
-    // Handle resize
+    // Handle resize — let the fit addon compute exact cols/rows from real cell metrics
     const handleResize = () => {
-      if (container && currentXterm) {
-        // Measure actual cell size from xterm internals for accurate cols/rows
-        const dims = (currentXterm as any)._core?._renderService?.dimensions;
-        const cellWidth = dims?.css?.cell?.width ?? 8.4;
-        const cellHeight = dims?.css?.cell?.height ?? 16.8;
-        // Account for 8px padding on all sides from .terminal-container .xterm
-        const padX = 16;
-        const padY = 16;
-        const cols = Math.max(1, Math.floor((container.clientWidth - padX) / cellWidth));
-        const rows = Math.max(1, Math.floor((container.clientHeight - padY) / cellHeight));
-        if (cols !== currentXterm.cols || rows !== currentXterm.rows) {
-          currentXterm.resize(cols, rows);
-          window.electronAPI.sshResize(tabId, cols, rows);
-        }
+      if (!container || !currentXterm) return;
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      const fitAddon = fitAddonCache.get(tabId);
+      if (!fitAddon) return;
+      const prevCols = currentXterm.cols;
+      const prevRows = currentXterm.rows;
+      try {
+        fitAddon.fit();
+      } catch {
+        return;
+      }
+      if (currentXterm.cols !== prevCols || currentXterm.rows !== prevRows) {
+        window.electronAPI.sshResize(tabId, currentXterm.cols, currentXterm.rows);
       }
     };
 

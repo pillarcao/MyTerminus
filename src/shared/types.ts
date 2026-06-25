@@ -136,10 +136,10 @@ export const DEFAULT_APPEARANCE: AppearanceConfig = {
 export const FALLBACK_TERMINAL_THEME: TerminalThemeConfig = {
   id: 'default',
   name: 'Default',
-  background: 'rgba(20, 20, 22, 0.35)',
-  foreground: '#e0e0e0',
-  cursor: '#e0e0e0',
-  selectionBackground: 'rgba(255,255,255,0.18)',
+  background: 'rgba(18, 20, 26, 0.90)',
+  foreground: '#d6dae0',
+  cursor: '#7aa2f7',
+  selectionBackground: 'rgba(122, 162, 247, 0.25)',
 };
 
 declare global {
