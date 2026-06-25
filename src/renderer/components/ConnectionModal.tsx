@@ -162,6 +162,18 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
                 <label htmlFor="cursorBlink" style={{ marginBottom: 0 }}>Blinking</label>
               </div>
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Backspace Key Sends</label>
+                <select
+                  value={form.backspaceMode || 'del'}
+                  onChange={(e) => setForm({ ...form, backspaceMode: e.target.value as any })}
+                >
+                  <option value="del">^? (DEL) — standard Linux</option>
+                  <option value="bs">^H (BS) — Solaris / SysV hosts</option>
+                </select>
+              </div>
+            </div>
 
             <div className="form-group">
               <label>Authentication</label>

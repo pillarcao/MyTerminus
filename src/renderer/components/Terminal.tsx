@@ -19,6 +19,7 @@ interface Props {
   terminalTheme?: string;
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
+  backspaceMode?: 'del' | 'bs';
 }
 
 
@@ -28,11 +29,15 @@ export default function Terminal({
   tabId,
   terminalTheme = 'default',
   cursorStyle = 'block',
-  cursorBlink = true
+  cursorBlink = true,
+  backspaceMode = 'del'
 }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  // Read live inside the key handler so a settings change applies without reconnecting.
+  const backspaceModeRef = useRef(backspaceMode);
+  backspaceModeRef.current = backspaceMode;
   const [connected, setConnected] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; selection: string } | null>(null);
   const { terminalThemes } = useAppStore(s => ({ terminalThemes: s.terminalThemes }));
@@ -172,17 +177,18 @@ export default function Terminal({
       xterm.loadAddon(fitAddon);
       fitAddonCache.set(tabId, fitAddon);
 
-      // WebGL addon: GPU-accelerated, crisp rendering. Gracefully fall back to the
-      // default (DOM) renderer if WebGL is unavailable or the context is lost.
+      // WebGL addon: GPU-accelerated, crisp rendering. Falls back to the default renderer
+      // on context loss. Note: this app uses transparent (rgba) theme backgrounds — if stale
+      // glyphs / redraw artifacts ever appear, the WebGL renderer is the first suspect.
       try {
         const webgl = new WebglAddon();
         webgl.onContextLoss(() => {
-          console.warn('[Terminal] WebGL context lost, falling back to DOM renderer');
+          console.warn('[Terminal] WebGL context lost, falling back to default renderer');
           webgl.dispose();
         });
         xterm.loadAddon(webgl);
       } catch (err) {
-        console.warn('[Terminal] WebGL renderer unavailable, using DOM renderer:', err);
+        console.warn('[Terminal] WebGL renderer unavailable, using default renderer:', err);
       }
 
       xtermCache.set(tabId, xterm);
@@ -286,9 +292,20 @@ export default function Terminal({
         // Set up data listener for this tab's xterm
         setupDataListener(xterm);
 
-        // Fix Delete key (forward delete) emitting \x1b[3~ instead of sometimes being swallowed or mismapped
+        // Explicit, direction-correct delete handling.
+        // Let modifier combos (e.g. Option/Ctrl+Backspace word-delete) fall through to xterm.
         xterm.attachCustomKeyEventHandler((event) => {
-          if (event.code === 'Delete' && event.type === 'keydown') {
+          if (event.type !== 'keydown') return true;
+          if (event.altKey || event.ctrlKey || event.metaKey) return true;
+
+          // Main-area "delete" key (Backspace) → delete the character to the LEFT of the cursor.
+          // 'del' sends ^? (\x7f, standard); 'bs' sends ^H (\x08) for hosts with `stty erase = ^H`.
+          if (event.key === 'Backspace') {
+            window.electronAPI.sshInput(tabId, backspaceModeRef.current === 'bs' ? '\x08' : '\x7f');
+            return false; // Prevent default
+          }
+          // Dedicated forward-delete key (Fn+Delete / full-keyboard Delete) → delete to the RIGHT
+          if (event.key === 'Delete') {
             window.electronAPI.sshInput(tabId, '\x1b[3~');
             return false; // Prevent default
           }

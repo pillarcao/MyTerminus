@@ -17,6 +17,9 @@ export interface Connection {
   terminalTheme?: string; // theme file id (e.g. 'nord', 'dracula', or custom)
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
+  // What the Backspace/Delete key sends. 'del' = ^? (\x7f, standard Linux default);
+  // 'bs' = ^H (\x08, for SysV/Solaris-style hosts where `stty erase = ^H`).
+  backspaceMode?: 'del' | 'bs';
 }
 
 export interface SFTPFile {

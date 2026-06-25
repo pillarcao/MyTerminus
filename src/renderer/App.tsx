@@ -344,6 +344,7 @@ export default function App() {
                     terminalTheme={connections.find(c => c.id === tab.connectionId)?.terminalTheme || 'default'}
                     cursorStyle={connections.find(c => c.id === tab.connectionId)?.cursorStyle || 'block'}
                     cursorBlink={connections.find(c => c.id === tab.connectionId)?.cursorBlink !== false}
+                    backspaceMode={connections.find(c => c.id === tab.connectionId)?.backspaceMode || 'del'}
                   />
                 ) : (
                   <SFTPBrowser connectionId={tab.connectionId} tabId={tab.id} />
