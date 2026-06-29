@@ -174,7 +174,7 @@ declare global {
       sftpRename: (connectionId: string, oldPath: string, newPath: string) => Promise<{ success: boolean }>;
       sftpUpload: (tabId: string, connectionId: string, localPath: string, remotePath: string) => Promise<{ success: boolean }>;
       sftpDownload: (tabId: string, connectionId: string, remotePath: string, localPath: string) => Promise<{ success: boolean }>;
-      onSftpProgress: (tabId: string, callback: (data: { type: string; progress: number; transferred: number; total: number }) => void) => () => void;
+      onSftpProgress: (tabId: string, callback: (data: { type: string; progress: number; transferred: number; total: number; speed: number }) => void) => () => void;
 
       openFileDialog: () => Promise<string | null>;
       saveFileDialog: (defaultPath: string) => Promise<string | null>;

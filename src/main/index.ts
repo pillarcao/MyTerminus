@@ -624,6 +624,40 @@ ipcMain.handle('sftp:chmod', async (_event, connectionId: string, remotePath: st
   });
 });
 
+// Throttled progress + speed reporter for SFTP transfers.
+// fastPut/fastGet's step callback fires per-chunk (very frequently); we coalesce
+// to ~one IPC message per 120ms and compute a smoothed transfer speed (bytes/sec).
+function makeProgressTracker(tabId: string, type: 'upload' | 'download', total: number) {
+  const startedAt = Date.now();
+  let lastEmit = startedAt;
+  let lastTransferred = 0;
+  let smoothedSpeed = 0;
+
+  const emit = (transferred: number, speed: number) => {
+    const progress = total > 0 ? Math.min(100, Math.round((transferred / total) * 100)) : 100;
+    mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type, progress, transferred, total, speed });
+  };
+
+  return {
+    step(transferred: number, totalFromLib: number) {
+      const now = Date.now();
+      const dt = (now - lastEmit) / 1000;
+      if (dt < 0.12) return; // throttle
+      const instSpeed = dt > 0 ? (transferred - lastTransferred) / dt : 0;
+      // Exponential smoothing to keep the displayed speed steady.
+      smoothedSpeed = smoothedSpeed === 0 ? instSpeed : smoothedSpeed * 0.6 + instSpeed * 0.4;
+      lastEmit = now;
+      lastTransferred = transferred;
+      emit(transferred, Math.max(0, smoothedSpeed));
+    },
+    done() {
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const avg = elapsed > 0 ? total / elapsed : 0;
+      emit(total, avg);
+    },
+  };
+}
+
 ipcMain.handle('sftp:upload', async (_event, tabId: string, connectionId: string, localPath: string, remotePath: string) => {
   const sftp: any = sftpClients.get(connectionId);
   if (!sftp) {
@@ -636,15 +670,19 @@ ipcMain.handle('sftp:upload', async (_event, tabId: string, connectionId: string
   const totalSize = stats.size;
 
   // Send initial progress
-  mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 0, transferred: 0, total: totalSize });
+  mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 0, transferred: 0, total: totalSize, speed: 0 });
+
+  const tracker = makeProgressTracker(tabId, 'upload', totalSize);
 
   return new Promise((resolve, reject) => {
-    // Use fastPut for reliable transfer
-    sftp.fastPut(localPath, remotePath, (err: any) => {
+    // Use fastPut for reliable transfer, with incremental progress + speed reporting
+    sftp.fastPut(localPath, remotePath, {
+      step: (transferred: number, _chunk: number, total: number) => tracker.step(transferred, total),
+    }, (err: any) => {
       if (err) {
         reject(err.message);
       } else {
-        mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 100, transferred: totalSize, total: totalSize });
+        tracker.done();
         resolve({ success: true });
       }
     });
@@ -663,14 +701,18 @@ ipcMain.handle('sftp:download', async (_event, tabId: string, connectionId: stri
       const totalSize = stats?.size || 0;
 
       // Send initial progress
-      mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 0, transferred: 0, total: totalSize });
+      mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 0, transferred: 0, total: totalSize, speed: 0 });
 
-      // Use fastGet for reliable download
-      sftp.fastGet(remotePath, localPath, (err2: any) => {
+      const tracker = makeProgressTracker(tabId, 'download', totalSize);
+
+      // Use fastGet for reliable download, with incremental progress + speed reporting
+      sftp.fastGet(remotePath, localPath, {
+        step: (transferred: number, _chunk: number, total: number) => tracker.step(transferred, total),
+      }, (err2: any) => {
         if (err2) {
           reject(err2.message);
         } else {
-          mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 100, transferred: totalSize, total: totalSize });
+          tracker.done();
           resolve({ success: true });
         }
       });

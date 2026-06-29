@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { SFTPFile, LocalFile } from '@shared/types';
 import LocalBrowser from './LocalBrowser';
-import { formatSize, formatDate, getFileType } from '../utils';
+import { formatSize, formatSpeed, formatETA, formatDate, getFileType } from '../utils';
 
 interface Props {
   connectionId: string;
@@ -31,11 +31,16 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     id: string;
     name: string;
     type: 'upload' | 'download';
-    progress: number; // 0-100
+    progress: number;    // 0-100
+    transferred: number; // bytes done
+    total: number;       // bytes total
+    speed: number;       // bytes/sec
     done: boolean;
     error?: string;
   }
   const [transferJobs, setTransferJobs] = useState<TransferJob[]>([]);
+  // Which job the incoming progress events belong to (transfers run sequentially).
+  const activeJobId = useRef<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [remoteInputPath, setRemoteInputPath] = useState('');
   const [isEditingRemotePath, setIsEditingRemotePath] = useState(false);
@@ -58,13 +63,16 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
       initialized.current = true;
       initHomePath();
     }
-    // Listen for SFTP progress per-file (keyed by filename suffix in the event)
+    // Listen for SFTP progress and apply it to the currently-active job
+    // (transfers run sequentially, so activeJobId points at the right one).
     const removeProgressListener = window.electronAPI.onSftpProgress(tabId, (data) => {
-      setTransferJobs(prev => prev.map(j => {
-        if (j.done) return j;
-        // Update the first non-done job (jobs run sequentially)
-        return { ...j, progress: data.progress };
-      }));
+      const id = activeJobId.current;
+      if (!id) return;
+      setTransferJobs(prev => prev.map(j =>
+        j.id === id && !j.done
+          ? { ...j, progress: data.progress, transferred: data.transferred, total: data.total, speed: data.speed }
+          : j
+      ));
     });
 
     return () => {
@@ -226,17 +234,19 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
 
     for (const file of filesToUpload) {
       const jobId = `up-${Date.now()}-${file.name}`;
-      setTransferJobs(prev => [...prev, { id: jobId, name: file.name, type: 'upload', progress: 0, done: false }]);
-      
+      activeJobId.current = jobId;
+      setTransferJobs(prev => [...prev, { id: jobId, name: file.name, type: 'upload', progress: 0, transferred: 0, total: file.size || 0, speed: 0, done: false }]);
+
       try {
         const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
         await window.electronAPI.sftpUpload(tabId, connectionId, file.path, remotePath);
-        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: 100, done: true } : j));
+        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: 100, transferred: j.total, speed: 0, done: true } : j));
       } catch (err: any) {
         setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, error: err.toString(), done: true } : j));
       }
     }
-    
+    activeJobId.current = null;
+
     await loadFiles();
     
     // Clear completed jobs after a short delay
@@ -254,18 +264,20 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
 
     for (const file of filesToDownload) {
       const jobId = `dn-${Date.now()}-${file.name}`;
-      setTransferJobs(prev => [...prev, { id: jobId, name: file.name, type: 'download', progress: 0, done: false }]);
-      
+      activeJobId.current = jobId;
+      setTransferJobs(prev => [...prev, { id: jobId, name: file.name, type: 'download', progress: 0, transferred: 0, total: file.size || 0, speed: 0, done: false }]);
+
       try {
         const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
         const localFilePath = currentLocalPath === '/' ? `/${file.name}` : `${currentLocalPath}/${file.name}`;
         await window.electronAPI.sftpDownload(tabId, connectionId, remotePath, localFilePath);
-        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: 100, done: true } : j));
+        setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: 100, transferred: j.total, speed: 0, done: true } : j));
       } catch (err: any) {
          setTransferJobs(prev => prev.map(j => j.id === jobId ? { ...j, error: err.toString(), done: true } : j));
       }
     }
-    
+    activeJobId.current = null;
+
     // Clear completed jobs after a short delay
     setTimeout(() => {
       setTransferJobs(prev => prev.filter(j => !j.done || !!j.error));
@@ -442,22 +454,6 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
         >
           {showHidden ? '👁' : '👁‍🗨'}
         </button>
-        <div className="transfer-queue">
-          {transferJobs.map(job => (
-            <div key={job.id} className={`transfer-job ${job.error ? 'error' : ''} ${job.done ? 'done' : ''}`}>
-              <div className="job-info">
-                <span className="job-icon">{job.type === 'upload' ? '↑' : '↓'}</span>
-                <span className="job-name">{job.name}</span>
-                <span className="job-pct">{job.error ? 'Error' : `${job.progress}%`}</span>
-              </div>
-              {!job.error && !job.done && (
-                <div className="job-bar-bg">
-                  <div className="job-bar" style={{ width: `${job.progress}%` }} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Dual panels */}
@@ -644,7 +640,60 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
           )}
         </div>
       </div>
-      
+
+      {/* Premium transfer panel — floating glass card, bottom-right */}
+      {transferJobs.length > 0 && (
+        <div className="transfer-panel">
+          <div className="transfer-panel-header">
+            <span className="transfer-panel-title">
+              Transfers
+              <span className="transfer-panel-count">{transferJobs.filter(j => !j.done).length || transferJobs.length}</span>
+            </span>
+            <button
+              className="transfer-panel-clear"
+              title="Clear finished"
+              onClick={() => setTransferJobs(prev => prev.filter(j => !j.done && !j.error))}
+            >
+              Clear
+            </button>
+          </div>
+          <div className="transfer-panel-body">
+            {transferJobs.map(job => {
+              const eta = job.speed > 0 && job.total > 0 ? (job.total - job.transferred) / job.speed : Infinity;
+              const state = job.error ? 'error' : job.done ? 'done' : 'active';
+              return (
+                <div key={job.id} className={`transfer-row ${state}`}>
+                  <div className="transfer-row-top">
+                    <span className="transfer-row-icon">{job.type === 'upload' ? '↑' : '↓'}</span>
+                    <span className="transfer-row-name" title={job.name}>{job.name}</span>
+                    <span className="transfer-row-status">
+                      {job.error ? 'Failed' : job.done ? '✓ Done' : `${job.progress}%`}
+                    </span>
+                  </div>
+                  <div className="transfer-bar-track">
+                    <div className={`transfer-bar-fill ${state}`} style={{ width: `${job.progress}%` }} />
+                  </div>
+                  <div className="transfer-row-meta">
+                    {job.error ? (
+                      <span className="transfer-row-err">{job.error}</span>
+                    ) : (
+                      <>
+                        <span>{formatSize(job.transferred)} / {formatSize(job.total)}</span>
+                        {!job.done && (
+                          <span className="transfer-row-speed">
+                            {formatSpeed(job.speed)}{isFinite(eta) ? ` · ${formatETA(eta)} left` : ''}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {contextMenu && (
         <>
           <div 

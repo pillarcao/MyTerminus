@@ -51,7 +51,7 @@ const api = {
     ipcRenderer.invoke('sftp:upload', tabId, connectionId, localPath, remotePath),
   sftpDownload: (tabId: string, connectionId: string, remotePath: string, localPath: string) =>
     ipcRenderer.invoke('sftp:download', tabId, connectionId, remotePath, localPath),
-  onSftpProgress: (tabId: string, callback: (data: { type: string; progress: number; transferred: number; total: number }) => void) => {
+  onSftpProgress: (tabId: string, callback: (data: { type: string; progress: number; transferred: number; total: number; speed: number }) => void) => {
     const listener = (_event: any, data: any) => callback(data);
     ipcRenderer.on(`sftp:progress:${tabId}`, listener);
     return () => ipcRenderer.removeListener(`sftp:progress:${tabId}`, listener);

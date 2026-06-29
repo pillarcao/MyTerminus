@@ -47,10 +47,13 @@ export default function Terminal({
     return terminalThemes.find(t => t.id === terminalTheme) || FALLBACK_TERMINAL_THEME;
   }, [terminalThemes, terminalTheme]);
 
-  // Convert TerminalThemeConfig to xterm.js ITheme object
+  // Convert TerminalThemeConfig to xterm.js ITheme object.
+  // The terminal background is applied to the container instead (see render), so it fills
+  // edge-to-edge — padding and the right-side column remainder share one uniform colour,
+  // eliminating the uneven "gray border". xterm itself stays transparent.
   const xtermTheme = useMemo(() => {
     const t: any = {
-      background: themeConfig.background,
+      background: 'rgba(0, 0, 0, 0)',
       foreground: themeConfig.foreground,
       cursor: themeConfig.cursor,
       cursorAccent: themeConfig.cursorAccent,
@@ -356,7 +359,7 @@ export default function Terminal({
   };
 
   return (
-    <div className="terminal-container" onClick={closeContextMenu}>
+    <div className="terminal-container" style={{ background: themeConfig.background }} onClick={closeContextMenu}>
       <div
         ref={terminalRef}
         style={{ height: '100%' }}
