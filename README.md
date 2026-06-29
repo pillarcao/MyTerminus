@@ -95,6 +95,32 @@ MyTerminus 是一个基于 Electron + TypeScript 开发的高级 SSH/SFTP 桌面
 ### 3. SFTP 隐藏文件
 在 SFTP 工具栏中，点击“👀”图标可快速切换隐藏文件的显示状态。
 
+## 配置文件位置
+
+应用的所有配置都保存在系统的**用户数据目录**下，卸载或重装应用不会自动清除（如需彻底清理可手动删除该目录）。
+
+各平台的基础目录如下（`<用户数据目录>`）：
+
+| 平台 | 安装版（打包后） | 开发模式（`npm run dev`） |
+|------|------------------|---------------------------|
+| **macOS** | `~/Library/Application Support/MyTerminus/` | `~/Library/Application Support/myterm-ssh/` |
+| **Windows** | `%APPDATA%\MyTerminus\`（即 `C:\Users\<用户名>\AppData\Roaming\MyTerminus\`） | `%APPDATA%\myterm-ssh\` |
+| **Linux** | `~/.config/MyTerminus/` | `~/.config/myterm-ssh/` |
+
+> 说明：安装版使用产品名 `MyTerminus`，而开发模式（直接 `electron .`）使用包名 `myterm-ssh`，因此两者目录名不同。
+
+目录内的文件结构：
+
+| 路径 | 内容 |
+|------|------|
+| `config.json` | 连接、分组等数据（由 electron-store 管理） |
+| `config/themes/*.conf` | 终端配色主题，每个主题一个 `.conf` 文件 |
+| `config/appearance.conf` | 全局外观与毛玻璃参数（模糊半径、饱和度、色调等） |
+
+**快捷入口：**
+- 顶栏右上角 🎨 图标：直接打开 `appearance.conf`。
+- 编辑连接对话框中“终端主题”旁的 📁 图标：直接打开 `config/themes` 目录。
+
 ## 技术规格
 
 - **核心架构**：Electron 28 + TSX
