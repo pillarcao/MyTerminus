@@ -1,5 +1,6 @@
 {
   "name": "myterm-ssh",
+  "productName": "MyTerminus",
   "version": "1.0.0",
   "description": "Electron SSH/SFTP Client",
   "main": "dist/main/index.js",

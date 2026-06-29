@@ -99,15 +99,15 @@ MyTerminus 是一个基于 Electron + TypeScript 开发的高级 SSH/SFTP 桌面
 
 应用的所有配置都保存在系统的**用户数据目录**下，卸载或重装应用不会自动清除（如需彻底清理可手动删除该目录）。
 
-各平台的基础目录如下（`<用户数据目录>`）：
+各平台的基础目录如下（`<用户数据目录>`）。安装版与开发模式（`npm run dev`）统一使用 `MyTerminus`：
 
-| 平台 | 安装版（打包后） | 开发模式（`npm run dev`） |
-|------|------------------|---------------------------|
-| **macOS** | `~/Library/Application Support/MyTerminus/` | `~/Library/Application Support/myterm-ssh/` |
-| **Windows** | `%APPDATA%\MyTerminus\`（即 `C:\Users\<用户名>\AppData\Roaming\MyTerminus\`） | `%APPDATA%\myterm-ssh\` |
-| **Linux** | `~/.config/MyTerminus/` | `~/.config/myterm-ssh/` |
+| 平台 | 目录 |
+|------|------|
+| **macOS** | `~/Library/Application Support/MyTerminus/` |
+| **Windows** | `%APPDATA%\MyTerminus\`（即 `C:\Users\<用户名>\AppData\Roaming\MyTerminus\`） |
+| **Linux** | `~/.config/MyTerminus/` |
 
-> 说明：安装版使用产品名 `MyTerminus`，而开发模式（直接 `electron .`）使用包名 `myterm-ssh`，因此两者目录名不同。
+> 说明：目录名取自 package.json 的 `productName` 字段（`MyTerminus`），开发与打包一致。
 
 目录内的文件结构：
 
