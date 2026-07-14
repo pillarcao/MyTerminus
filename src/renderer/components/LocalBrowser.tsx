@@ -150,7 +150,9 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
   }, [navigateTo]);
 
   const handleFileClick = useCallback((file: LocalFile, e: React.MouseEvent) => {
-    if (file.isDirectory) {
+    // Plain click on a folder navigates into it; Ctrl/Cmd/Shift-click selects it
+    // (so folders can join a batch upload alongside files). Files always select.
+    if (file.isDirectory && !(e.metaKey || e.ctrlKey || e.shiftKey)) {
       navigateTo(file.path);
     } else {
       onFileSelect(file, e);

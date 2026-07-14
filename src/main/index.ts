@@ -664,29 +664,68 @@ ipcMain.handle('sftp:upload', async (_event, tabId: string, connectionId: string
     throw new Error('SFTP not connected');
   }
 
-  // Get file size for progress calculation
   const fs = require('fs');
-  const stats = fs.statSync(localPath);
-  const totalSize = stats.size;
+  const path = require('path');
+  const rootStats = fs.statSync(localPath);
 
-  // Send initial progress
-  mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 0, transferred: 0, total: totalSize, speed: 0 });
-
-  const tracker = makeProgressTracker(tabId, 'upload', totalSize);
-
-  return new Promise((resolve, reject) => {
-    // Use fastPut for reliable transfer, with incremental progress + speed reporting
-    sftp.fastPut(localPath, remotePath, {
-      step: (transferred: number, _chunk: number, total: number) => tracker.step(transferred, total),
-    }, (err: any) => {
-      if (err) {
-        reject(err.message);
-      } else {
-        tracker.done();
-        resolve({ success: true });
-      }
+  // Promisified fastPut for a single file
+  const putFile = (lp: string, rp: string, onStep: (t: number) => void) =>
+    new Promise<void>((resolve, reject) => {
+      sftp.fastPut(lp, rp, {
+        step: (transferred: number) => onStep(transferred),
+      }, (err: any) => (err ? reject(err.message || err) : resolve()));
     });
-  });
+
+  // Best-effort remote mkdir (ignore "already exists"); real permission errors surface on file put
+  const ensureDir = (rp: string) =>
+    new Promise<void>((resolve) => sftp.mkdir(rp, () => resolve()));
+
+  // ── Single file: unchanged behavior ──
+  if (!rootStats.isDirectory()) {
+    const totalSize = rootStats.size;
+    mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 0, transferred: 0, total: totalSize, speed: 0 });
+    const tracker = makeProgressTracker(tabId, 'upload', totalSize);
+    await putFile(localPath, remotePath, (t) => tracker.step(t, totalSize));
+    tracker.done();
+    return { success: true };
+  }
+
+  // ── Directory: walk the tree, then create dirs and upload files with aggregate progress ──
+  const dirs: string[] = [];              // remote dirs, parents before children
+  const files: Array<{ local: string; remote: string; size: number }> = [];
+  let grandTotal = 0;
+  const walk = (localDir: string, remoteDir: string) => {
+    dirs.push(remoteDir);
+    for (const entry of fs.readdirSync(localDir, { withFileTypes: true })) {
+      const lp = path.join(localDir, entry.name);
+      const rp = `${remoteDir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(lp, rp);
+      } else if (entry.isFile()) {
+        const size = fs.statSync(lp).size;
+        files.push({ local: lp, remote: rp, size });
+        grandTotal += size;
+      }
+      // symlinks / special files are skipped
+    }
+  };
+  walk(localPath, remotePath);
+
+  // Create the remote directory structure (parents first)
+  for (const d of dirs) {
+    await ensureDir(d);
+  }
+
+  // Upload files, feeding cumulative bytes to one tracker so progress/speed span the whole folder
+  mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'upload', progress: 0, transferred: 0, total: grandTotal, speed: 0 });
+  const tracker = makeProgressTracker(tabId, 'upload', grandTotal);
+  let base = 0;
+  for (const f of files) {
+    await putFile(f.local, f.remote, (t) => tracker.step(base + t, grandTotal));
+    base += f.size;
+  }
+  tracker.done();
+  return { success: true };
 });
 
 ipcMain.handle('sftp:download', async (_event, tabId: string, connectionId: string, remotePath: string, localPath: string) => {
@@ -695,29 +734,70 @@ ipcMain.handle('sftp:download', async (_event, tabId: string, connectionId: stri
     throw new Error('SFTP not connected');
   }
 
-  // First get the file size
-  return new Promise((resolve, reject) => {
-    sftp.stat(remotePath, (err: any, stats: any) => {
-      const totalSize = stats?.size || 0;
+  const fs = require('fs');
+  const path = require('path');
 
-      // Send initial progress
-      mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 0, transferred: 0, total: totalSize, speed: 0 });
-
-      const tracker = makeProgressTracker(tabId, 'download', totalSize);
-
-      // Use fastGet for reliable download, with incremental progress + speed reporting
-      sftp.fastGet(remotePath, localPath, {
-        step: (transferred: number, _chunk: number, total: number) => tracker.step(transferred, total),
-      }, (err2: any) => {
-        if (err2) {
-          reject(err2.message);
-        } else {
-          tracker.done();
-          resolve({ success: true });
-        }
-      });
+  // Promisified sftp ops
+  const statP = (rp: string) =>
+    new Promise<any>((resolve, reject) => sftp.stat(rp, (e: any, s: any) => (e ? reject(e.message || e) : resolve(s))));
+  const readdirP = (rp: string) =>
+    new Promise<any[]>((resolve, reject) => sftp.readdir(rp, (e: any, l: any[]) => (e ? reject(e.message || e) : resolve(l))));
+  const getFile = (rp: string, lp: string, onStep: (t: number) => void) =>
+    new Promise<void>((resolve, reject) => {
+      sftp.fastGet(rp, lp, {
+        step: (transferred: number) => onStep(transferred),
+      }, (err: any) => (err ? reject(err.message || err) : resolve()));
     });
-  });
+
+  const rootStats = await statP(remotePath);
+
+  // ── Single file: unchanged behavior ──
+  if (!rootStats.isDirectory()) {
+    const totalSize = rootStats.size || 0;
+    mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 0, transferred: 0, total: totalSize, speed: 0 });
+    const tracker = makeProgressTracker(tabId, 'download', totalSize);
+    await getFile(remotePath, localPath, (t) => tracker.step(t, totalSize));
+    tracker.done();
+    return { success: true };
+  }
+
+  // ── Directory: walk the remote tree, create local dirs, download files with aggregate progress ──
+  const dirs: string[] = [];              // local dirs, parents before children
+  const files: Array<{ remote: string; local: string; size: number }> = [];
+  let grandTotal = 0;
+  const walk = async (remoteDir: string, localDir: string) => {
+    dirs.push(localDir);
+    const list = await readdirP(remoteDir);
+    for (const item of list) {
+      const rp = `${remoteDir}/${item.filename}`;
+      const lp = path.join(localDir, item.filename);
+      if (item.attrs.isDirectory()) {
+        await walk(rp, lp);
+      } else if (item.attrs.isFile()) {
+        const size = item.attrs.size || 0;
+        files.push({ remote: rp, local: lp, size });
+        grandTotal += size;
+      }
+      // symlinks / special files are skipped
+    }
+  };
+  await walk(remotePath, localPath);
+
+  // Create the local directory structure (parents first)
+  for (const d of dirs) {
+    fs.mkdirSync(d, { recursive: true });
+  }
+
+  // Download files, feeding cumulative bytes to one tracker so progress/speed span the whole folder
+  mainWindow?.webContents.send(`sftp:progress:${tabId}`, { type: 'download', progress: 0, transferred: 0, total: grandTotal, speed: 0 });
+  const tracker = makeProgressTracker(tabId, 'download', grandTotal);
+  let base = 0;
+  for (const f of files) {
+    await getFile(f.remote, f.local, (t) => tracker.step(base + t, grandTotal));
+    base += f.size;
+  }
+  tracker.done();
+  return { success: true };
 });
 
 ipcMain.handle('dialog:openFile', async () => {
