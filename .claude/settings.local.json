@@ -9,7 +9,40 @@
       "Bash(pkill -f \"electron\\\\|vite\")",
       "Bash(pkill -f \"electron\\\\|vite\\\\|wait-on\" sleep 2 lsof -ti:5173)",
       "Bash(pkill -f \"electron\\\\|vite\\\\|wait-on\" sleep 1 lsof -ti:5173)",
-      "Bash(pkill -f electron)"
+      "Bash(pkill -f electron)",
+      "Bash(env)",
+      "Bash(pkill -f \"Electron\")",
+      "Bash(awk '{print $6, $7, $8}')",
+      "Bash(rm -f \"$HOME/Library/Application Support/myterm-ssh/config/themes/\"*.conf && npx tsc -p tsconfig.main.json && echo \"Build OK\")",
+      "Bash(timeout 8 npm view @xterm/addon-webgl version)",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(grep -vi \"localstorage\\\\|trace-warnings\\\\|^>\\\\|^$\")",
+      "Bash(python3 -)",
+      "Bash(osascript -e 'tell application \"System Events\" to tell process \"Electron\" to set frontmost to true')",
+      "Bash(screencapture -x -o /tmp/ui-1.png)",
+      "Bash(python3 -c ' *)",
+      "Bash(awk ' *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(perl -pi -e 's|<span className=\"group-toggle\">▶</span>|<span className=\"group-toggle\"><Icon name=\"chevronRight\" size={12} /></span>|g' src/renderer/components/Sidebar.tsx)",
+      "Bash(perl -pi -e 's/const \\\\[showConnectionModal, setShowConnectionModal\\\\] = useState\\\\\\(false\\\\\\);/const [showConnectionModal, setShowConnectionModal] = useState\\(true\\);/' src/renderer/App.tsx)",
+      "Bash(screencapture -x -o /tmp/ui-modal.png)",
+      "Bash(screencapture -x /tmp/vib_full.png)",
+      "Bash(sips -Z 1400 /tmp/vib_full.png --out /tmp/vib_small.png)",
+      "Bash(perl -0pi -e \"s/\\(\\\\.header \\\\{\\\\n\\(?:[^}]*?\\)\\)background: var\\\\\\(--surface\\\\\\);/\\\\$1background: var\\(--glass\\);/s\" src/renderer/index.css)",
+      "Bash(perl -0pi -e \"s/\\(\\\\.sidebar \\\\{\\\\n\\(?:[^}]*?\\)\\)background: var\\\\\\(--surface\\\\\\);/\\\\$1background: var\\(--glass\\);/s\" src/renderer/index.css)",
+      "Bash(pkill -f vibtest.js)",
+      "Bash(osascript -e 'tell application \"System Events\" to tell \\(first process whose name is \"Electron\"\\) to set frontmost to true')",
+      "Bash(screencapture -x /tmp/app.png)",
+      "Bash(sips -Z 1500 /tmp/app.png --out /tmp/app_s.png)",
+      "Bash(osascript -e 'tell application \"System Events\" to get {name, position, size} of every window of \\(first process whose name contains \"Electron\"\\)')",
+      "Bash(rm -f /tmp/vibtest.js /tmp/vib*.png /tmp/app*.png)",
+      "Bash(ps -o pid,lstart,command -p 19147)",
+      "Bash(awk '{print $2, $9}')"
+    ],
+    "additionalDirectories": [
+      "/Users/caolizhu/Library/Application Support/myterm-ssh/config/themes"
     ]
   }
 }

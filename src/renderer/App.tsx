@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from './stores/appStore';
-import { Connection, Group } from '@shared/types';
+import { Connection, Group, DEFAULT_APPEARANCE } from '@shared/types';
 import ConnectionModal from './components/ConnectionModal';
 import GroupModal from './components/GroupModal';
 import Sidebar from './components/Sidebar';
 import HostDetail from './components/HostDetail';
 import TabBar from './components/TabBar';
-import Terminal from './components/Terminal';
+import Terminal, { sendInput } from './components/Terminal';
+import Icon from './components/Icon';
 import SFTPBrowser from './components/SFTPBrowser';
 import CommandBar from './components/CommandBar';
+import AppearancePanel from './components/AppearancePanel';
 
 export default function App() {
   const {
@@ -18,17 +20,14 @@ export default function App() {
     setGroups,
     tabs,
     activeTabId,
-    setConnecting,
     setError,
     error,
     setSftpPath,
     addTab,
     showCommandBar,
     setShowCommandBar,
-    glassOpacity,
-    setGlassOpacity,
-    appearanceConfig,
     setTerminalThemes,
+    appearanceConfig,
     setAppearanceConfig,
   } = useAppStore();
 
@@ -38,6 +37,43 @@ export default function App() {
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showAppearance, setShowAppearance] = useState(false);
+
+  // VS Code's ⌘B. NOT plain Ctrl+B off macOS — that's tmux's prefix key, and a global
+  // listener here would swallow it before the terminal ever sees it.
+  useEffect(() => {
+    const isMac = window.electronAPI.platform === 'darwin';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'b') return;
+      if (isMac ? !(e.metaKey && !e.ctrlKey) : !(e.ctrlKey && e.shiftKey)) return;
+      e.preventDefault();
+      setShowSidebar(s => !s);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // appearance.conf → CSS custom properties. index.css derives --glass / --surface /
+  // --canvas from these, so one knob moves all three frosted layers together.
+  // The conf is hand-edited, so every value is coerced: a typo yields NaN, and
+  // `calc(NaN * 0.58)` makes the surface colour invalid — i.e. the whole UI loses its fill.
+  useEffect(() => {
+    const a = appearanceConfig;
+    const d = DEFAULT_APPEARANCE;
+    const num = (v: number, fallback: number) => (Number.isFinite(v) ? v : fallback);
+    const root = document.documentElement.style;
+    root.setProperty('--tint', `${num(a.uiTintHue, d.uiTintHue)} ${num(a.uiTintSat, d.uiTintSat)}% ${num(a.uiTintLight, d.uiTintLight)}%`);
+    root.setProperty('--glass-opacity', String(num(a.glassOpacity, d.glassOpacity)));
+    root.setProperty('--blur-overlay', `${num(a.blurOverlay, d.blurOverlay)}px`);
+  }, [appearanceConfig]);
+
+  // Re-read on focus: edit the file, switch back, see it. Cheaper than a Reload button.
+  useEffect(() => {
+    const reload = () => window.electronAPI.getAppearanceConfig().then(setAppearanceConfig);
+    window.addEventListener('focus', reload);
+    return () => window.removeEventListener('focus', reload);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -49,22 +85,6 @@ export default function App() {
       title: 'HOST',
     });
   }, []);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    // Set colors based on appearance config tint and opacity
-    const { uiTintHue, uiTintSat, uiTintLight, blurSidebar, blurHeader, blurModal, glassSaturate } = appearanceConfig;
-    root.style.setProperty('--bg-primary', `hsla(${uiTintHue}, ${uiTintSat}%, ${uiTintLight}%, ${glassOpacity})`);
-    root.style.setProperty('--bg-secondary', `hsla(${uiTintHue}, ${Math.max(0, uiTintSat - 10)}%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
-    root.style.setProperty('--bg-tertiary', `hsla(${uiTintHue}, ${Math.max(0, uiTintSat - 5)}%, 96%, ${Math.max(0, glassOpacity - 0.15)})`);
-    root.style.setProperty('--glass-bg', `hsla(${uiTintHue}, ${Math.max(0, uiTintSat - 10)}%, 100%, ${Math.max(0, glassOpacity - 0.1)})`);
-    
-    // Set blur variables
-    root.style.setProperty('--blur-sidebar', `${blurSidebar}px`);
-    root.style.setProperty('--blur-header', `${blurHeader}px`);
-    root.style.setProperty('--blur-modal', `${blurModal}px`);
-    root.style.setProperty('--glass-saturate', `${glassSaturate}%`);
-  }, [glassOpacity, appearanceConfig]);
 
   const loadData = async () => {
     try {
@@ -78,7 +98,6 @@ export default function App() {
       setGroups(groupsList);
       setTerminalThemes(themesList);
       setAppearanceConfig(appearanceCfg);
-      setGlassOpacity(appearanceCfg.glassOpacity);
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -150,7 +169,6 @@ export default function App() {
     const isAlreadyConnected = connectedIds.has(connection.id);
 
     if (!isAlreadyConnected) {
-      setConnecting(true);
       setError(null);
       try {
         const config: any = {
@@ -169,10 +187,8 @@ export default function App() {
         setConnectedIds((prev) => new Set([...prev, connection.id]));
       } catch (err: any) {
         setError(err.toString());
-        setConnecting(false);
         return;
       }
-      setConnecting(false);
     }
 
     // Open SSH or SFTP based on type
@@ -180,23 +196,6 @@ export default function App() {
       handleOpenSFTP(connection);
     } else {
       handleOpenTerminal(connection);
-    }
-  };
-
-  const handleDisconnect = async (connectionId: string) => {
-    try {
-      await window.electronAPI.sshDisconnect(connectionId);
-      setConnectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(connectionId);
-        return next;
-      });
-      // Close any tabs for this connection
-      const state = useAppStore.getState();
-      const tabsToRemove = state.tabs.filter(t => t.connectionId === connectionId);
-      tabsToRemove.forEach(t => state.removeTab(t.id));
-    } catch (err) {
-      console.error('Disconnect error:', err);
     }
   };
 
@@ -245,12 +244,12 @@ export default function App() {
     
     if (target === 'current') {
       if (activeTabId && tabs.find(t => t.id === activeTabId)?.type === 'terminal') {
-        window.electronAPI.sshInput(activeTabId, cmd);
+        sendInput(activeTabId, cmd);
       }
     } else {
       // Send to all open terminal tabs
       tabs.filter(t => t.type === 'terminal').forEach(tab => {
-        window.electronAPI.sshInput(tab.id, cmd);
+        sendInput(tab.id, cmd);
       });
     }
   };
@@ -263,65 +262,55 @@ export default function App() {
       <div className="header">
         <TabBar onTabClose={handleTabClose} />
         <div className="header-right">
-          <div className="opacity-slider" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
-            <span style={{ fontSize: '11px', opacity: 0.7, fontFamily: 'monospace' }}>Glass</span>
-            <input 
-              type="range" 
-              min="0" 
-              max="1" 
-              step="0.05"
-              value={glassOpacity}
-              onChange={(e) => {
-                const newOp = parseFloat(e.target.value);
-                setGlassOpacity(newOp);
-                window.electronAPI.saveAppearanceConfig({ ...appearanceConfig, glassOpacity: newOp });
-              }}
-              style={{ width: '60px', opacity: 0.8 }}
-              title="Adjust Glassmorphism Transparency"
-            />
-          </div>
+          <button
+            className={`btn-icon ${showSidebar ? 'active' : ''}`}
+            onClick={() => setShowSidebar(!showSidebar)}
+            title={`Toggle Sidebar (${window.electronAPI.platform === 'darwin' ? '⌘B' : 'Ctrl+Shift+B'})`}
+            aria-label="Toggle Sidebar"
+          >
+            <Icon name="sidebar" />
+          </button>
           <button
             className={`btn-icon ${showCommandBar ? 'active' : ''}`}
             onClick={() => setShowCommandBar(!showCommandBar)}
             title="Toggle Command Bar (Batch Send)"
+            aria-label="Toggle Command Bar"
           >
-            ⌨️
+            <Icon name="command" />
           </button>
           <button
-            className="btn-icon"
-            onClick={() => window.electronAPI.openAppearanceConfig()}
-            title="Edit Appearance Config"
+            className={`btn-icon ${showAppearance ? 'active' : ''}`}
+            onClick={() => setShowAppearance(!showAppearance)}
+            title="Appearance"
+            aria-label="Appearance"
           >
-            🎨
+            <Icon name="sliders" />
           </button>
         </div>
       </div>
       <div className="main-content">
         {/* HOST tab - always rendered, toggled via display */}
         <div className="split-view-container" style={{ display: activeTab?.type === 'host' ? 'flex' : 'none' }}>
-          <Sidebar
+          {showSidebar && <Sidebar
             connections={connections}
             connectedIds={connectedIds}
             selectedGroup={selectedGroup}
             onSelectGroup={setSelectedGroup}
+            groups={groups}
+            onConnect={handleConnect}
             onAddConnection={handleAddConnection}
             onEditConnection={handleEditConnection}
             onDeleteConnection={handleDeleteConnection}
-            groups={groups}
             onAddGroup={handleAddGroup}
             onEditGroup={handleEditGroup}
             onDeleteGroup={handleDeleteGroup}
-            onOpenTerminal={handleOpenTerminal}
-            onOpenSFTP={handleOpenSFTP}
-            onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
-          />
+          />}
           <HostDetail
             connections={connections}
             selectedGroup={selectedGroup}
             connectedIds={connectedIds}
             onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
+            onAddConnection={handleAddConnection}
             onEditConnection={handleEditConnection}
             onDeleteConnection={handleDeleteConnection}
           />
@@ -345,6 +334,7 @@ export default function App() {
                     cursorStyle={connections.find(c => c.id === tab.connectionId)?.cursorStyle || 'block'}
                     cursorBlink={connections.find(c => c.id === tab.connectionId)?.cursorBlink !== false}
                     backspaceMode={connections.find(c => c.id === tab.connectionId)?.backspaceMode || 'del'}
+                    terminalOpacity={connections.find(c => c.id === tab.connectionId)?.terminalOpacity}
                   />
                 ) : (
                   <SFTPBrowser connectionId={tab.connectionId} tabId={tab.id} />
@@ -356,7 +346,9 @@ export default function App() {
         {error && (
           <div className="error-banner">
             <span>{error}</span>
-            <button className="btn-icon" onClick={() => setError(null)}>✕</button>
+            <button className="btn-icon" onClick={() => setError(null)} title="Dismiss" aria-label="Dismiss error">
+              <Icon name="close" size={14} />
+            </button>
           </div>
         )}
         {showCommandBar && (
@@ -372,6 +364,13 @@ export default function App() {
           groups={groups}
           onSave={handleSaveConnection}
           onClose={() => setShowConnectionModal(false)}
+        />
+      )}
+      {showAppearance && (
+        <AppearancePanel
+          config={appearanceConfig}
+          onChange={setAppearanceConfig}
+          onClose={() => setShowAppearance(false)}
         />
       )}
       {showGroupModal && (

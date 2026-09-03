@@ -4,12 +4,24 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { useAppStore } from '../stores/appStore';
+import { Suggester, seedHistory } from '../commandSuggest';
+import { withAlpha } from '../termColor';
 
 // Module-level cache to persist xterm instances by tabId
 const xtermCache: Map<string, XTerm> = new Map();
 const fitAddonCache: Map<string, FitAddon> = new Map();
 const shellReady: Map<string, boolean> = new Map();
 const dataListenerCleanup: Map<string, () => void> = new Map();
+const suggesters: Map<string, Suggester> = new Map();
+
+/**
+ * Single funnel for everything we send to the shell, so the inline suggestion is always
+ * erased before the shell can touch the line — and so →/End/Ctrl+E can accept it.
+ */
+export function sendInput(tabId: string, data: string): void {
+  const suggest = suggesters.get(tabId);
+  window.electronAPI.sshInput(tabId, suggest ? suggest.onKey(data) : data);
+}
 
 import { FALLBACK_TERMINAL_THEME } from '@shared/types';
 
@@ -20,6 +32,8 @@ interface Props {
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
   backspaceMode?: 'del' | 'bs';
+  /** Overrides the theme background's own alpha. Undefined = keep the theme's. */
+  terminalOpacity?: number;
 }
 
 
@@ -30,7 +44,8 @@ export default function Terminal({
   terminalTheme = 'default',
   cursorStyle = 'block',
   cursorBlink = true,
-  backspaceMode = 'del'
+  backspaceMode = 'del',
+  terminalOpacity
 }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -72,6 +87,14 @@ export default function Terminal({
     return t;
   }, [themeConfig]);
 
+  // The connection's opacity replaces the theme's alpha; the theme keeps deciding the hue.
+  const containerBackground = useMemo(
+    () => terminalOpacity === undefined
+      ? themeConfig.background
+      : withAlpha(themeConfig.background, terminalOpacity),
+    [themeConfig.background, terminalOpacity],
+  );
+
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -93,13 +116,13 @@ export default function Terminal({
   }, [contextMenu, closeContextMenu]);
 
   const handleDelete = useCallback(() => {
-    window.electronAPI.sshInput(tabId, '\x7f');
+    sendInput(tabId, '\x7f');
     closeContextMenu();
   }, [tabId, closeContextMenu]);
 
   const handlePaste = useCallback(async () => {
     const text = await navigator.clipboard.readText();
-    window.electronAPI.sshInput(tabId, text);
+    sendInput(tabId, text);
     closeContextMenu();
   }, [tabId, closeContextMenu]);
 
@@ -134,15 +157,17 @@ export default function Terminal({
         cursorBlink: cursorBlink,
         cursorStyle: cursorStyle,
         cursorWidth: 2,
-        fontSize: 13.5,
+        // Ghostty's metrics: JetBrains Mono 13px, no letter-spacing, line height straight
+        // from the font (~1.2) — that tight grid is most of what makes it look like Ghostty.
+        fontSize: 13,
         fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, Monaco, "Courier New", monospace',
         fontWeight: '400',
         fontWeightBold: '600',
-        letterSpacing: 0.3,
-        lineHeight: 1.3,
+        letterSpacing: 0,
+        lineHeight: 1.2,
         theme: xtermTheme,
         allowTransparency: true,
-        drawBoldTextInBrightColors: true,
+        drawBoldTextInBrightColors: false, // Ghostty: bold-is-bright = false
         minimumContrastRatio: 1,
         scrollback: 10000,
         allowProposedApi: true,
@@ -155,7 +180,7 @@ export default function Terminal({
         try {
           const text = await navigator.clipboard.readText();
           if (text) {
-            window.electronAPI.sshInput(tabId, text);
+            sendInput(tabId, text);
           }
         } catch (err) {
           console.error('Failed to paste from clipboard:', err);
@@ -215,7 +240,7 @@ export default function Terminal({
         const text = await window.electronAPI.clipboardRead();
         console.log('[Terminal] Clipboard content read, length:', text?.length || 0);
         if (text) {
-          window.electronAPI.sshInput(tabId, text);
+          sendInput(tabId, text);
           console.log('[Terminal] Paste command sent to SSH session');
         }
       } catch (err: any) {
@@ -291,6 +316,8 @@ export default function Terminal({
       if (result.success) {
         setConnected(true);
         shellReady.set(tabId, true);
+        suggesters.get(tabId)?.dispose();
+        suggesters.set(tabId, new Suggester(xterm, connectionId));
 
         // Set up data listener for this tab's xterm
         setupDataListener(xterm);
@@ -304,12 +331,12 @@ export default function Terminal({
           // Main-area "delete" key (Backspace) → delete the character to the LEFT of the cursor.
           // 'del' sends ^? (\x7f, standard); 'bs' sends ^H (\x08) for hosts with `stty erase = ^H`.
           if (event.key === 'Backspace') {
-            window.electronAPI.sshInput(tabId, backspaceModeRef.current === 'bs' ? '\x08' : '\x7f');
+            sendInput(tabId, backspaceModeRef.current === 'bs' ? '\x08' : '\x7f');
             return false; // Prevent default
           }
           // Dedicated forward-delete key (Fn+Delete / full-keyboard Delete) → delete to the RIGHT
           if (event.key === 'Delete') {
-            window.electronAPI.sshInput(tabId, '\x1b[3~');
+            sendInput(tabId, '\x1b[3~');
             return false; // Prevent default
           }
           return true;
@@ -317,7 +344,7 @@ export default function Terminal({
 
         // Handle user input - send to SSH and keep cursor visible
         xterm.onData((data: string) => {
-          window.electronAPI.sshInput(tabId, data);
+          sendInput(tabId, data);
           requestAnimationFrame(() => {
             const buffer = xterm.buffer.active;
             const cursorLine = buffer.baseY + buffer.cursorY;
@@ -330,11 +357,22 @@ export default function Terminal({
           setConnected(false);
           xterm.writeln('\r\n*** Connection closed ***');
           shellReady.delete(tabId);
+          suggesters.get(tabId)?.dispose();
+          suggesters.delete(tabId);
         });
       }
     } catch (err) {
       xterm.writeln(`\r\n*** Error: ${err} ***`);
     }
+
+    // Seed suggestions from this host's shell history. Deliberately last and outside the try:
+    // a stale preload, a server that forbids exec, or any other failure here must never take
+    // the shell's input handlers down with it.
+    try {
+      window.electronAPI.sshHistory?.(connectionId)
+        ?.then(raw => seedHistory(connectionId, raw))
+        .catch(() => {});
+    } catch { /* suggestions just fall back to typed history + built-ins */ }
   };
 
   const setupDataListener = (xterm: XTerm) => {
@@ -346,6 +384,8 @@ export default function Terminal({
 
     // Set up data listener - receive output from SSH
     const removeDataListener = window.electronAPI.onSshData(tabId, (data: string) => {
+      // Erase any inline suggestion first, then re-offer one once the line settles.
+      suggesters.get(tabId)?.onOutput();
       xterm.write(data);
       // Defer scroll to ensure xterm has finished rendering
       requestAnimationFrame(() => {
@@ -359,7 +399,7 @@ export default function Terminal({
   };
 
   return (
-    <div className="terminal-container" style={{ background: themeConfig.background }} onClick={closeContextMenu}>
+    <div className="terminal-container" style={{ background: containerBackground }} onClick={closeContextMenu}>
       <div
         ref={terminalRef}
         style={{ height: '100%' }}

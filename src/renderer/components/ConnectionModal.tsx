@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import Icon from './Icon';
 import { Connection, Group } from '@shared/types';
 import { useAppStore } from '../stores/appStore';
+import { alphaOf } from '../termColor';
 
 interface Props {
   connection: Connection | null;
@@ -40,6 +42,11 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
     onSave(form);
   };
 
+  // Unset opacity means "whatever the theme file says", so seed the slider from the theme
+  // instead of a made-up 1.0 — otherwise the control would lie about the current look.
+  const themeBg = terminalThemes.find(t => t.id === (form.terminalTheme || 'default'))?.background;
+  const opacity = form.terminalOpacity ?? (themeBg ? alphaOf(themeBg) : 1);
+
   const handleSelectKeyFile = async () => {
     const path = await window.electronAPI.openFileDialog();
     if (path) {
@@ -52,8 +59,8 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{connection ? 'Edit Connection' : 'New Connection'}</h3>
-          <button className="btn-icon" onClick={onClose}>
-            ✕
+          <button className="btn-icon" onClick={onClose} title="Close" aria-label="Close">
+            <Icon name="close" size={14} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>
@@ -135,10 +142,26 @@ export default function ConnectionModal({ connection, groups, onSave, onClose }:
                   title="Open themes directory"
                   onClick={() => window.electronAPI.openThemesDir()}
                 >
-                  📁
+                  <Icon name="folder" size={14} />
                 </button>
               </div>
             </div>
+
+            <div className="form-group">
+              <label>
+                Terminal Opacity
+                <span className="knob-value">{opacity.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                min={0.2}
+                max={1}
+                step={0.01}
+                value={opacity}
+                onChange={(e) => setForm({ ...form, terminalOpacity: Number(e.target.value) })}
+              />
+            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>Cursor Style</label>

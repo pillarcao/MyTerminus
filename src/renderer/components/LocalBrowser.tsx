@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useReducer, useCallback } from 'react';
+import Icon from './Icon';
 import { LocalFile } from '@shared/types';
 import { formatSize, formatDate, getFileType } from '../utils';
 
@@ -207,11 +208,11 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
   return (
     <div className="file-browser">
       <div className="panel-header">
-        <span className="panel-title">📱 Local</span>
+        <span className="panel-title"><Icon name="folder" size={14} />Local</span>
         <div className="panel-nav">
-          <button className="btn-icon btn-sm" onClick={navigateBack} disabled={historyIndex <= 0}>&lt;</button>
-          <button className="btn-icon btn-sm" onClick={navigateForward} disabled={historyIndex >= history.length - 1}>&gt;</button>
-          <button className="btn-icon btn-sm" onClick={() => loadFiles(currentPath)} title="Refresh">↻</button>
+          <button className="btn-icon btn-sm" onClick={navigateBack} disabled={historyIndex <= 0} title="Back"><Icon name="chevronLeft" size={14} /></button>
+          <button className="btn-icon btn-sm" onClick={navigateForward} disabled={historyIndex >= history.length - 1} title="Forward"><Icon name="chevronRight" size={14} /></button>
+          <button className="btn-icon btn-sm" onClick={() => loadFiles(currentPath)} title="Refresh"><Icon name="refresh" size={14} /></button>
         </div>
         <div
           className="browser-path"
@@ -285,7 +286,7 @@ export default function LocalBrowser({ localPath, onPathChange, onFileSelect, on
                 >
                   <td>
                     <span className="file-name">
-                      <span className="file-icon">{file.isDirectory ? '📁' : '📄'}</span>
+                      <span className="file-icon"><Icon name={file.isDirectory ? "folder" : "file"} size={14} /></span>
                       {file.name}
                     </span>
                   </td>

@@ -13,7 +13,9 @@
     "build:electron": "tsc -p tsconfig.main.json",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win",
-    "package:mac": "npm run build && electron-builder --mac"
+    "package:mac": "npm run build && electron-builder --mac",
+    "check:suggest": "tsc src/renderer/commandSuggest.check.ts src/renderer/commandSuggest.term-check.ts --outDir .tmp-check --module nodenext --target es2022 --moduleResolution nodenext --skipLibCheck && node .tmp-check/commandSuggest.check.js && node .tmp-check/commandSuggest.term-check.js",
+    "check:termcolor": "tsc src/renderer/termColor.check.ts --outDir .tmp-check --module nodenext --target es2022 --moduleResolution nodenext --skipLibCheck && node .tmp-check/termColor.check.js"
   },
   "author": "",
   "license": "MIT",
@@ -23,6 +25,7 @@
     "@types/react-dom": "^18.2.18",
     "@types/ssh2": "^1.11.19",
     "@vitejs/plugin-react": "^4.2.1",
+    "@xterm/headless": "^5.5.0",
     "concurrently": "^8.2.2",
     "electron": "^28.1.3",
     "electron-builder": "^24.9.1",
@@ -31,6 +34,7 @@
     "wait-on": "^7.2.0"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^5.3.0",

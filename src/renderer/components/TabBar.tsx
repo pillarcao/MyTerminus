@@ -1,4 +1,5 @@
 import { useAppStore } from '../stores/appStore';
+import Icon from './Icon';
 
 interface Props {
   onTabClose?: (tabId: string, connectionId: string) => void;
@@ -46,13 +47,13 @@ export default function TabBar({ onTabClose }: Props) {
           onClick={() => handleTabClick(tab)}
         >
           <span className="tab-icon">
-            {tab.type === 'host' ? '🖥' : tab.type === 'terminal' ? '⌨' : '📁'}
+            <Icon name={tab.type === 'host' ? 'server' : tab.type === 'terminal' ? 'terminal' : 'folder'} size={14} />
           </span>
-          <span>{tab.title}</span>
+          <span className="tab-title" title={tab.title}>{tab.title}</span>
           {tab.type !== 'host' && tabs.length > 1 && (
-            <span className="close" onClick={(e) => handleClose(e, tab.id)}>
-              ✕
-            </span>
+            <button className="close" onClick={(e) => handleClose(e, tab.id)} title="Close tab" aria-label="Close tab">
+              <Icon name="close" size={12} />
+            </button>
           )}
         </div>
       ))}

@@ -15,6 +15,9 @@ export interface Connection {
   privateKeyPath?: string;
   groupId?: string;
   terminalTheme?: string; // theme file id (e.g. 'nord', 'dracula', or custom)
+  // Overrides the alpha of the theme's background colour. Undefined = whatever the theme
+  // file declares, so existing connections keep looking exactly as they did.
+  terminalOpacity?: number; // 0.0–1.0
   cursorStyle?: 'block' | 'underline' | 'bar';
   cursorBlink?: boolean;
   // What the Backspace/Delete key sends. 'del' = ^? (\x7f, standard Linux default);
@@ -37,44 +40,6 @@ export interface LocalFile {
   size: number;
   modified: string;
 }
-
-export interface Theme {
-  id: string;
-  name: string;
-  colors: {
-    bgPrimary: string;
-    bgSecondary: string;
-    bgTertiary: string;
-    textPrimary: string;
-    textSecondary: string;
-    textMuted?: string;
-    accent: string;
-    accentHover: string;
-    border: string;
-    success: string;
-    error: string;
-  };
-}
-
-export const THEMES: Theme[] = [
-  {
-    id: 'light',
-    name: 'Light',
-    colors: {
-      bgPrimary: 'rgba(246, 246, 246, 0.85)',
-      bgSecondary: 'rgba(255, 255, 255, 0.85)',
-      bgTertiary: 'rgba(242, 242, 242, 0.85)',
-      textPrimary: '#000000',
-      textSecondary: '#4a4a4f',
-      textMuted: '#6e6e73',
-      accent: '#007aff',
-      accentHover: '#0056cc',
-      border: 'rgba(0, 0, 0, 0.15)',
-      success: '#34c759',
-      error: '#ff3b30',
-    },
-  },
-];
 
 // ── Terminal Theme Config ──────────────────────────────────────────────────
 // Maps to a single .conf file in the themes/ directory.
@@ -113,23 +78,25 @@ export interface TerminalThemeConfig {
 
 // ── App Appearance Config ──────────────────────────────────────────────────
 // Maps to appearance.conf in the config directory.
+/**
+ * Every knob here provably changes something. There used to be blur-sidebar, blur-header
+ * and glass-saturate as well; they were dropped because `backdrop-filter` cannot reach the
+ * macOS vibrancy layer through a transparent window — verified with an isolated two-pane
+ * test where blur(30px) saturate(300%) rendered pixel-identical to plain rgba. Blurring the
+ * desktop is the system's job. Only panels floating above the app's OWN content have a
+ * backdrop worth filtering, hence the single blur-overlay.
+ */
 export interface AppearanceConfig {
-  glassOpacity: number;    // 0.0–1.0, overall UI panel transparency
-  blurSidebar: number;     // px, sidebar backdrop blur
-  blurHeader: number;      // px, header backdrop blur
-  blurModal: number;       // px, modal backdrop blur
-  glassSaturate: number;   // %, glass saturation
-  uiTintHue: number;       // 0–360, UI panel tint hue
-  uiTintSat: number;       // 0–100, UI panel tint saturation
-  uiTintLight: number;     // 0–100, UI panel tint lightness
+  glassOpacity: number;    // 0.0–1.0, drives all three frosted layers proportionally
+  blurOverlay: number;     // px, blur behind floating panels (modal / menu / command bar)
+  uiTintHue: number;       // 0–360, tint of every frosted surface
+  uiTintSat: number;       // 0–100
+  uiTintLight: number;     // 0–100
 }
 
 export const DEFAULT_APPEARANCE: AppearanceConfig = {
-  glassOpacity: 0.35,
-  blurSidebar: 48,
-  blurHeader: 24,
-  blurModal: 40,
-  glassSaturate: 180,
+  glassOpacity: 0.55,
+  blurOverlay: 20,
   uiTintHue: 240,
   uiTintSat: 10,
   uiTintLight: 98,
@@ -160,6 +127,8 @@ declare global {
       sshConnect: (connectionId: string, config: any) => Promise<{ success: boolean }>;
       sshDisconnect: (connectionId: string) => Promise<boolean>;
       sshShell: (connectionId: string) => Promise<{ success: boolean }>;
+      /** Raw contents of the remote shell history files (empty string if unavailable) */
+      sshHistory: (connectionId: string) => Promise<string>;
       sshInput: (connectionId: string, data: string) => void;
       sshResize: (connectionId: string, cols: number, rows: number) => void;
       onSshData: (connectionId: string, callback: (data: string) => void) => () => void;

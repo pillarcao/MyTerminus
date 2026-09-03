@@ -380,6 +380,30 @@ ipcMain.handle('ssh:disconnect', (_event, connectionId: string) => {
   return true;
 });
 
+// Remote shell history — seeds the terminal's inline command suggestions.
+// Best-effort: any failure just means no seeds, so it never blocks a connection.
+ipcMain.handle('ssh:history', async (_event, connectionId: string) => {
+  const client = connections.get(connectionId);
+  if (!client) return '';
+  const cmd = 'cat ~/.bash_history ~/.zsh_history "$HISTFILE" 2>/dev/null | tail -n 2000';
+  return new Promise<string>((resolve) => {
+    const done = setTimeout(() => resolve(''), 5000);
+    client.exec(cmd, (err: any, stream: any) => {
+      if (err) {
+        clearTimeout(done);
+        resolve('');
+        return;
+      }
+      let out = '';
+      stream.on('data', (d: Buffer) => { out += d.toString('utf8'); });
+      stream.on('close', () => {
+        clearTimeout(done);
+        resolve(out);
+      });
+    });
+  });
+});
+
 // SSH shell/terminal
 ipcMain.handle('ssh:shell', async (_event, tabId: string, connectionId: string) => {
   const client = connections.get(connectionId);
@@ -992,6 +1016,8 @@ function serializeConf(header: string, data: Record<string, string>): string {
 // ── Built-in theme definitions ───────────────────────────────────────────────
 const BUILT_IN_THEMES: Array<Record<string, string>> = [
   { _id: 'default', name: 'Default', description: 'Refined blue-charcoal glass, soft daylight text', background: 'rgba(18, 20, 26, 0.90)', foreground: '#d6dae0', cursor: '#7aa2f7', 'cursor-accent': '#12141a', selection: 'rgba(122, 162, 247, 0.25)', black: '#1b1e26', red: '#e86671', green: '#8fc88a', yellow: '#e6c384', blue: '#82aaff', magenta: '#c099ff', cyan: '#6fd0d6', white: '#c8ccd4', 'bright-black': '#3b4048', 'bright-red': '#f07178', 'bright-green': '#a5d6a0', 'bright-yellow': '#f0d399', 'bright-blue': '#9cc0ff', 'bright-magenta': '#d4b3ff', 'bright-cyan': '#8be0e6', 'bright-white': '#e8ebf0' },
+  // Ghostty's own defaults: background #282c34, white foreground, Tomorrow Night palette.
+  { _id: 'ghostty', name: 'Ghostty', description: "Ghostty's default palette — Tomorrow Night on slate", background: 'rgba(40, 44, 52, 0.78)', foreground: '#ffffff', cursor: '#ffffff', 'cursor-accent': '#282c34', selection: 'rgba(255,255,255,0.25)', 'selection-inactive': 'rgba(255,255,255,0.10)', black: '#1d1f21', red: '#cc6666', green: '#b5bd68', yellow: '#f0c674', blue: '#81a2be', magenta: '#b294bb', cyan: '#8abeb7', white: '#c5c8c6', 'bright-black': '#666666', 'bright-red': '#d54e53', 'bright-green': '#b9ca4a', 'bright-yellow': '#e7c547', 'bright-blue': '#7aa6da', 'bright-magenta': '#c397d8', 'bright-cyan': '#70c0b1', 'bright-white': '#eaeaea' },
   { _id: 'dark', name: 'Deep Dark', description: 'Near-black, crisp white', background: 'rgba(1, 1, 20, 0.94)', foreground: '#f0f0f0', cursor: '#f0f0f0', 'cursor-accent': '#0a0a14', selection: 'rgba(255,255,255,0.22)', black: '#0a0a0f', red: '#ff4d4d', green: '#4dff91', yellow: '#ffd700', blue: '#4d9eff', magenta: '#c56eff', cyan: '#4dd9ff', white: '#f0f0f0', 'bright-black': '#3c3c50', 'bright-red': '#ff7070', 'bright-green': '#70ffaa', 'bright-yellow': '#ffe54d', 'bright-blue': '#70b8ff', 'bright-magenta': '#d88fff', 'bright-cyan': '#70e8ff', 'bright-white': '#ffffff' },
   { _id: 'light', name: 'Light Glass', description: 'Frosted white, dark ink', background: 'rgba(245, 245, 250, 0.82)', foreground: '#1a1a2e', cursor: '#1a1a2e', 'cursor-accent': '#f5f5fa', selection: 'rgba(0,80,200,0.18)', black: '#1a1a2e', red: '#c0392b', green: '#27ae60', yellow: '#d4a017', blue: '#2980b9', magenta: '#8e44ad', cyan: '#16a085', white: '#ecf0f1', 'bright-black': '#555577', 'bright-red': '#e74c3c', 'bright-green': '#2ecc71', 'bright-yellow': '#f1c40f', 'bright-blue': '#3498db', 'bright-magenta': '#9b59b6', 'bright-cyan': '#1abc9c', 'bright-white': '#ffffff' },
   { _id: 'liquid-glass', name: 'Liquid Glass', description: 'Cool aqua glass with crisp white text', background: 'rgba(8, 18, 28, 0.82)', foreground: '#e8f7ff', cursor: '#7ad8ff', 'cursor-accent': '#091824', selection: 'rgba(122, 216, 255, 0.28)', black: '#07101a', red: '#ff7fa8', green: '#7ff4d5', yellow: '#ffe68b', blue: '#7ad8ff', magenta: '#bf8fff', cyan: '#8ae7ff', white: '#ddefff', 'bright-black': '#3b5265', 'bright-red': '#ff9cb8', 'bright-green': '#9dffd8', 'bright-yellow': '#fff3a6', 'bright-blue': '#abe8ff', 'bright-magenta': '#d5b1ff', 'bright-cyan': '#bff3ff', 'bright-white': '#f5fbff' },
@@ -1012,14 +1038,23 @@ const BUILT_IN_THEMES: Array<Record<string, string>> = [
   { _id: 'rose-pine-dawn', name: 'Rosé Pine Dawn', description: 'Soft petal light, warm ink text', background: 'rgba(250, 244, 237, 0.85)', foreground: '#575279', cursor: '#d7827e', 'cursor-accent': '#faf4ed', selection: 'rgba(215,130,126,0.20)', black: '#575279', red: '#b4637a', green: '#286983', yellow: '#ea9d34', blue: '#56949f', magenta: '#907aa9', cyan: '#d7827e', white: '#f2e9e1', 'bright-black': '#9893a5', 'bright-red': '#c97d91', 'bright-green': '#3d8296', 'bright-yellow': '#edb05c', 'bright-blue': '#6fa7b0', 'bright-magenta': '#a694bd', 'bright-cyan': '#e09d99', 'bright-white': '#faf4ed' },
 ];
 
+// Mirrors DEFAULT_APPEARANCE in src/shared/types.ts. Not imported because this tsconfig
+// sets rootDir to src/main — pulling in src/shared would shift the whole dist/main layout.
+const DEFAULT_APPEARANCE = {
+  glassOpacity: 0.55, blurOverlay: 20, uiTintHue: 240, uiTintSat: 10, uiTintLight: 98,
+};
+
 const APPEARANCE_CONF_HEADER = `# MyTerminus Appearance Configuration
-# Edit this file to customise the glassmorphism and UI appearance.
-# Save the file and click "Reload" in the app, or restart the app.
+# Save the file and switch back to the app — the glass updates on window focus.
 #
-# glass-opacity    : 0.0 – 1.0  (overall UI transparency)
-# blur-*           : blur radius in pixels
-# glass-saturate   : saturation % for the glass effect
-# ui-tint-*        : HSL values for the UI panel tint colour`;
+# glass-opacity : 0.0 – 1.0. Transparency of every frosted surface. One knob drives all
+#                 three layers proportionally: backdrop < header/sidebar < tables/modals.
+#                 0.55 = current default. Lower = more see-through.
+# blur-overlay  : px. Blur behind floating panels (modal, right-click menu, command bar).
+#                 Only these have a backdrop to blur — the desktop blur behind the whole
+#                 window comes from macOS vibrancy and is not adjustable from here.
+# ui-tint-*     : HSL of every frosted surface. 240 / 10 / 98 = near-white, faintly cool.
+#                 Try hue 30 sat 25 for warm, or lightness 20 for a dark UI.`;
 
 const THEME_CONF_HEADER = (name: string, desc: string) =>
   `# MyTerminus Terminal Theme — ${name}\n# ${desc}\n#\n# Colour values: #rrggbb  or  rgba(r, g, b, alpha)\n# alpha controls terminal transparency (0.0 = fully transparent, 1.0 = opaque)`;
@@ -1075,14 +1110,11 @@ function parseThemeConf(id: string, content: string): any {
 function parseAppearanceConf(content: string): any {
   const d = parseConf(content);
   return {
-    glassOpacity:  parseFloat(d['glass-opacity']  ?? '0.35'),
-    blurSidebar:   parseInt  (d['blur-sidebar']   ?? '48', 10),
-    blurHeader:    parseInt  (d['blur-header']     ?? '24', 10),
-    blurModal:     parseInt  (d['blur-modal']      ?? '40', 10),
-    glassSaturate: parseInt  (d['glass-saturate']  ?? '180', 10),
-    uiTintHue:     parseInt  (d['ui-tint-hue']     ?? '240', 10),
-    uiTintSat:     parseInt  (d['ui-tint-sat']     ?? '10', 10),
-    uiTintLight:   parseInt  (d['ui-tint-light']   ?? '98', 10),
+    glassOpacity: parseFloat(d['glass-opacity'] ?? '0.55'),
+    blurOverlay:  parseInt  (d['blur-overlay']  ?? '20', 10),
+    uiTintHue:    parseInt  (d['ui-tint-hue']   ?? '240', 10),
+    uiTintSat:    parseInt  (d['ui-tint-sat']   ?? '10', 10),
+    uiTintLight:  parseInt  (d['ui-tint-light'] ?? '98', 10),
   };
 }
 
@@ -1090,17 +1122,12 @@ function parseAppearanceConf(content: string): any {
 function serializeAppearanceConf(cfg: any): string {
   return [
     APPEARANCE_CONF_HEADER, '',
-    `${'glass-opacity'.padEnd(20)} = ${cfg.glassOpacity}`,
+    `${'glass-opacity'.padEnd(16)} = ${cfg.glassOpacity}`,
+    `${'blur-overlay'.padEnd(16)} = ${cfg.blurOverlay}`,
     '',
-    `${'blur-sidebar'.padEnd(20)} = ${cfg.blurSidebar}`,
-    `${'blur-header'.padEnd(20)} = ${cfg.blurHeader}`,
-    `${'blur-modal'.padEnd(20)} = ${cfg.blurModal}`,
-    '',
-    `${'glass-saturate'.padEnd(20)} = ${cfg.glassSaturate}`,
-    '',
-    `${'ui-tint-hue'.padEnd(20)} = ${cfg.uiTintHue}`,
-    `${'ui-tint-sat'.padEnd(20)} = ${cfg.uiTintSat}`,
-    `${'ui-tint-light'.padEnd(20)} = ${cfg.uiTintLight}`,
+    `${'ui-tint-hue'.padEnd(16)} = ${cfg.uiTintHue}`,
+    `${'ui-tint-sat'.padEnd(16)} = ${cfg.uiTintSat}`,
+    `${'ui-tint-light'.padEnd(16)} = ${cfg.uiTintLight}`,
     '',
   ].join('\n');
 }
@@ -1124,13 +1151,16 @@ function initConfigDir() {
     }
   }
 
-  // Write appearance.conf if absent
+  // Write appearance.conf if absent, or rewrite it if it still lists the old knobs
+  // (blur-sidebar / blur-header / glass-saturate) that could never take effect —
+  // leaving them in the file just invites the user to tune something inert.
   if (!fs.existsSync(appearancePath)) {
-    fs.writeFileSync(appearancePath, serializeAppearanceConf({
-      glassOpacity: 0.35, blurSidebar: 48, blurHeader: 24,
-      blurModal: 40, glassSaturate: 180, uiTintHue: 240, uiTintSat: 10, uiTintLight: 98,
-    }), 'utf-8');
+    fs.writeFileSync(appearancePath, serializeAppearanceConf(DEFAULT_APPEARANCE), 'utf-8');
     console.log('[Config] Wrote default appearance.conf');
+  } else if (fs.readFileSync(appearancePath, 'utf-8').includes('blur-sidebar')) {
+    const kept = parseAppearanceConf(fs.readFileSync(appearancePath, 'utf-8'));
+    fs.writeFileSync(appearancePath, serializeAppearanceConf(kept), 'utf-8');
+    console.log('[Config] Migrated appearance.conf to the current knobs');
   }
 }
 
@@ -1171,9 +1201,7 @@ ipcMain.handle('themes:openDir', () => {
 
 ipcMain.handle('appearance:get', (): any => {
   const p = getAppearancePath();
-  if (!fs.existsSync(p)) {
-    return { glassOpacity: 0.35, blurSidebar: 48, blurHeader: 24, blurModal: 40, glassSaturate: 180, uiTintHue: 240, uiTintSat: 10, uiTintLight: 98 };
-  }
+  if (!fs.existsSync(p)) return DEFAULT_APPEARANCE;
   return parseAppearanceConf(fs.readFileSync(p, 'utf-8'));
 });
 

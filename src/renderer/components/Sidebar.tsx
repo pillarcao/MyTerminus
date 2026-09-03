@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Icon from './Icon';
 import { Connection, Group } from '@shared/types';
 
 interface Props {
@@ -6,200 +7,152 @@ interface Props {
   connectedIds: Set<string>;
   selectedGroup: Group | null;
   onSelectGroup: (group: Group | null) => void;
+  groups: Group[];
+  onConnect: (connection: Connection, type: 'ssh' | 'sftp') => void;
   onAddConnection: () => void;
   onEditConnection: (connection: Connection) => void;
   onDeleteConnection: (id: string) => void;
-  groups: Group[];
   onAddGroup: () => void;
   onEditGroup: (group: Group) => void;
   onDeleteGroup: (id: string) => void;
-  onOpenTerminal: (connection: Connection) => void;
-  onOpenSFTP: (connection: Connection) => void;
-  onConnect: (connection: Connection) => void;
-  onDisconnect: (connectionId: string) => void;
 }
 
+type Menu = { x: number; y: number; group?: Group; conn?: Connection };
+
+/** Pure tree: groups expand to host leaves. Every action is on right-click, no buttons. */
 export default function Sidebar({
   connections,
   connectedIds,
   selectedGroup,
   onSelectGroup,
+  groups,
+  onConnect,
   onAddConnection,
   onEditConnection,
   onDeleteConnection,
-  groups,
   onAddGroup,
   onEditGroup,
   onDeleteGroup,
-  onOpenTerminal,
-  onOpenSFTP,
-  onConnect,
-  onDisconnect,
 }: Props) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [menu, setMenu] = useState<Menu | null>(null);
 
-  const toggleGroup = (groupId: string) => {
-    setExpandedGroups((prev) => {
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [menu]);
+
+  const openMenu = (e: React.MouseEvent, target: Omit<Menu, 'x' | 'y'>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, ...target });
+  };
+
+  const toggle = (groupId: string) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(groupId)) {
-        next.delete(groupId);
-      } else {
-        next.add(groupId);
-      }
+      next.has(groupId) ? next.delete(groupId) : next.add(groupId);
       return next;
     });
   };
 
-  const getConnectionsByGroup = (groupId: string) => {
-    return connections.filter(c => c.groupId === groupId);
-  };
-
   return (
-    <div className="sidebar">
+    <div className="sidebar" onContextMenu={(e) => openMenu(e, {})}>
       <div className="sidebar-header">
         <h2>HOSTS</h2>
-        <div className="sidebar-actions">
-          <button className="btn-icon" onClick={onAddGroup} title="New Group">
-            📂
-          </button>
-          <button className="btn-icon" onClick={onAddConnection} title="New Host">
-            ➕
-          </button>
-        </div>
       </div>
       <div className="connection-list">
-        {/* All Hosts option */}
         <div
           className={`group-header ${selectedGroup === null ? 'active' : ''}`}
           onClick={() => onSelectGroup(null)}
         >
-          <span className="group-toggle">▶</span>
+          {/* Empty chevron + dot slots keep the label aligned with the group rows below. */}
+          <span className="group-toggle" />
+          <span className="group-color" style={{ background: 'transparent' }} />
           <span className="group-name">All Hosts</span>
           <span className="group-count">{connections.length}</span>
         </div>
 
         {groups.map((group) => {
-          const groupConns = getConnectionsByGroup(group.id);
-          const isExpanded = expandedGroups.has(group.id);
+          const children = connections.filter(c => c.groupId === group.id);
+          const isExpanded = expanded.has(group.id);
 
           return (
-            <div key={group.id} className="group">
+            <div key={group.id}>
               <div
                 className={`group-header ${selectedGroup?.id === group.id ? 'active' : ''} ${isExpanded ? 'expanded' : ''}`}
                 onClick={() => {
                   onSelectGroup(group);
-                  toggleGroup(group.id);
+                  toggle(group.id);
                 }}
+                onContextMenu={(e) => openMenu(e, { group })}
               >
-                <span className="group-toggle">▶</span>
+                <span className="group-toggle"><Icon name="chevronRight" size={12} /></span>
                 <span className="group-color" style={{ backgroundColor: group.color || '#0078d4' }} />
                 <span className="group-name">{group.name}</span>
-                <span className="group-count">{groupConns.length}</span>
-                <div className="group-actions">
-                  <button
-                    className="btn-icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditGroup(group);
-                    }}
-                    title="Edit"
-                  >
-                    ✏
-                  </button>
-                  <button
-                    className="btn-icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`Delete group "${group.name}"?`)) {
-                        onDeleteGroup(group.id);
-                      }
-                    }}
-                    title="Delete"
-                  >
-                    🗑
-                  </button>
-                </div>
+                <span className="group-count">{children.length}</span>
               </div>
               {isExpanded && (
-                <div className="group-connections">
-                  {groupConns.length > 0 ? (
-                    groupConns.map((conn) => renderConnectionItem(conn))
-                  ) : (
-                    <div className="group-empty">No hosts</div>
-                  )}
+                <div className="tree-leaves">
+                  {children.length === 0 && <div className="tree-leaf-empty">No hosts</div>}
+                  {children.map((conn) => (
+                    <div
+                      key={conn.id}
+                      className="tree-leaf"
+                      title={`${conn.username}@${conn.host}:${conn.port}`}
+                      onDoubleClick={() => onConnect(conn, 'ssh')}
+                      onContextMenu={(e) => openMenu(e, { conn })}
+                    >
+                      <span className={`tree-leaf-dot ${connectedIds.has(conn.id) ? 'connected' : ''}`} />
+                      <span className="tree-leaf-name">{conn.name}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           );
         })}
       </div>
-    </div>
-  );
 
-  function renderConnectionItem(conn: Connection) {
-    const isConnected = connectedIds.has(conn.id);
-
-    return (
-      <div key={conn.id} className="host-item-compact">
-        <div className={`host-status-dot ${isConnected ? 'connected' : ''}`} />
-        <div className="host-item-info">
-          <div className="host-item-name">{conn.name}</div>
-        </div>
-        <div className="host-item-actions">
-          {isConnected ? (
+      {menu && (
+        <div className="context-menu" style={{ position: 'fixed', left: menu.x, top: menu.y }}>
+          {menu.conn ? (
             <>
-              <button
-                className="btn-icon btn-sm"
-                onClick={() => onOpenTerminal(conn)}
-                title="SSH"
+              <div className="context-menu-item" onClick={() => onConnect(menu.conn!, 'ssh')}>Open SSH</div>
+              <div className="context-menu-item" onClick={() => onConnect(menu.conn!, 'sftp')}>Open SFTP</div>
+              <div className="context-menu-item" onClick={() => onEditConnection(menu.conn!)}>Edit…</div>
+              <div
+                className="context-menu-item"
+                onClick={() => {
+                  if (confirm(`Delete connection "${menu.conn!.name}"?`)) onDeleteConnection(menu.conn!.id);
+                }}
               >
-                ⌨
-              </button>
-              <button
-                className="btn-icon btn-sm"
-                onClick={() => onOpenSFTP(conn)}
-                title="SFTP"
+                Delete
+              </div>
+            </>
+          ) : menu.group ? (
+            <>
+              <div className="context-menu-item" onClick={onAddConnection}>New Host</div>
+              <div className="context-menu-item" onClick={() => onEditGroup(menu.group!)}>Rename…</div>
+              <div
+                className="context-menu-item"
+                onClick={() => {
+                  if (confirm(`Delete group "${menu.group!.name}"?`)) onDeleteGroup(menu.group!.id);
+                }}
               >
-                📁
-              </button>
-              <button
-                className="btn-icon btn-sm"
-                onClick={() => onDisconnect(conn.id)}
-                title="Disconnect"
-              >
-                ⏹
-              </button>
+                Delete
+              </div>
             </>
           ) : (
-            <button
-              className="btn-icon btn-sm"
-              onClick={() => onConnect(conn)}
-              title="Connect"
-            >
-              ▶
-            </button>
+            <>
+              <div className="context-menu-item" onClick={onAddGroup}>New Group</div>
+              <div className="context-menu-item" onClick={onAddConnection}>New Host</div>
+            </>
           )}
-          <button
-            className="btn-icon btn-sm"
-            onClick={() => onEditConnection(conn)}
-            title="Edit"
-          >
-            ⚙
-          </button>
-          <button
-            className="btn-icon btn-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm(`Delete connection "${conn.name}"?`)) {
-                onDeleteConnection(conn.id);
-              }
-            }}
-            title="Delete"
-          >
-            🗑
-          </button>
         </div>
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
 }

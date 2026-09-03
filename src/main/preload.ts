@@ -17,6 +17,7 @@ const api = {
     ipcRenderer.invoke('ssh:connect', connectionId, config),
   sshDisconnect: (connectionId: string) => ipcRenderer.invoke('ssh:disconnect', connectionId),
   sshShell: (tabId: string, connectionId: string) => ipcRenderer.invoke('ssh:shell', tabId, connectionId),
+  sshHistory: (connectionId: string) => ipcRenderer.invoke('ssh:history', connectionId),
   sshInput: (tabId: string, data: string) =>
     ipcRenderer.send('ssh:input', tabId, data),
   sshResize: (tabId: string, cols: number, rows: number) =>

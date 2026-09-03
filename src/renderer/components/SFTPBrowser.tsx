@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import Icon from './Icon';
 import { useAppStore } from '../stores/appStore';
 import { SFTPFile, LocalFile } from '@shared/types';
 import LocalBrowser from './LocalBrowser';
@@ -435,24 +436,27 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
     <div className="dual-pane">
       {/* Toolbar */}
       <div className="dual-toolbar">
-        <button className="btn btn-sm btn-secondary" onClick={loadFiles}>
-          ↻
+        <button className="btn btn-sm btn-secondary" onClick={loadFiles} title="Refresh">
+          <Icon name="refresh" size={14} />
         </button>
         <button className="btn btn-sm btn-secondary" onClick={() => handleUpload()} disabled={selectedLocalFiles.length === 0}>
-          ↑ Upload
+          <Icon name="upload" size={14} />
+          Upload
         </button>
         <button className="btn btn-sm btn-secondary" onClick={() => handleDownload()} disabled={selectedRemoteFiles.length === 0}>
-          ↓ Download
+          <Icon name="download" size={14} />
+          Download
         </button>
         <button className="btn btn-sm btn-secondary" onClick={() => setShowNewFolder(true)}>
-          + Folder
+          <Icon name="folderPlus" size={14} />
+          Folder
         </button>
         <button 
           className={`btn btn-sm ${showHidden ? 'btn-primary' : 'btn-secondary'}`} 
           onClick={() => setShowHidden(!showHidden)}
           title={showHidden ? 'Hide Hidden Files' : 'Show Hidden Files'}
         >
-          {showHidden ? '👁' : '👁‍🗨'}
+          <Icon name={showHidden ? "eye" : "eyeOff"} size={14} />
         </button>
       </div>
 
@@ -496,11 +500,11 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
           onDragLeave={handleDragLeave}
         >
           <div className="panel-header">
-            <span className="panel-title">🖥 Remote</span>
+            <span className="panel-title"><Icon name="server" size={14} />Remote</span>
             <div className="panel-nav">
-              <button className="btn-icon btn-sm" onClick={navigateRemoteBack} disabled={remoteHistoryIndex <= 0}>&lt;</button>
-              <button className="btn-icon btn-sm" onClick={navigateRemoteForward} disabled={remoteHistoryIndex >= remoteHistory.length - 1}>&gt;</button>
-              <button className="btn-icon btn-sm" onClick={loadFiles} title="Refresh">↻</button>
+              <button className="btn-icon btn-sm" onClick={navigateRemoteBack} disabled={remoteHistoryIndex <= 0} title="Back"><Icon name="chevronLeft" size={14} /></button>
+              <button className="btn-icon btn-sm" onClick={navigateRemoteForward} disabled={remoteHistoryIndex >= remoteHistory.length - 1} title="Forward"><Icon name="chevronRight" size={14} /></button>
+              <button className="btn-icon btn-sm" onClick={loadFiles} title="Refresh"><Icon name="refresh" size={14} /></button>
             </div>
             <div 
               className="panel-path" 
@@ -625,7 +629,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
                     >
                       <td>
                         <span className="file-name">
-                          <span className="file-icon">{file.isDirectory ? '📁' : '📄'}</span>
+                          <span className="file-icon"><Icon name={file.isDirectory ? "folder" : "file"} size={14} /></span>
                           {file.name}
                         </span>
                       </td>
@@ -664,7 +668,7 @@ export default function SFTPBrowser({ connectionId, tabId }: Props) {
               return (
                 <div key={job.id} className={`transfer-row ${state}`}>
                   <div className="transfer-row-top">
-                    <span className="transfer-row-icon">{job.type === 'upload' ? '↑' : '↓'}</span>
+                    <span className="transfer-row-icon"><Icon name={job.type === 'upload' ? "upload" : "download"} size={12} /></span>
                     <span className="transfer-row-name" title={job.name}>{job.name}</span>
                     <span className="transfer-row-status">
                       {job.error ? 'Failed' : job.done ? '✓ Done' : `${job.progress}%`}

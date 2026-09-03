@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Icon from './Icon';
 import { Group } from '@shared/types';
 
 interface Props {
@@ -37,8 +38,8 @@ export default function GroupModal({ group, onSave, onClose }: Props) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{group ? 'Edit Group' : 'New Group'}</h3>
-          <button className="btn-icon" onClick={onClose}>
-            ✕
+          <button className="btn-icon" onClick={onClose} title="Close" aria-label="Close">
+            <Icon name="close" size={14} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>

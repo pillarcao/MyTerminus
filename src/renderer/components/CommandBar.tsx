@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Icon from './Icon';
 
 interface Props {
   onSendCommand: (command: string, target: 'current' | 'all') => void;
@@ -40,8 +41,8 @@ export default function CommandBar({ onSendCommand, onClose }: Props) {
               <option value="all">All SSH Tabs</option>
             </select>
           </div>
-          <button className="btn-icon btn-sm" onClick={onClose} title="Close">
-            ✕
+          <button className="btn-icon btn-sm" onClick={onClose} title="Close" aria-label="Close command bar">
+            <Icon name="close" size={14} />
           </button>
         </div>
         <div className="command-bar-body">
